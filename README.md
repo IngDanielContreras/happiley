@@ -1,4 +1,4 @@
-# Happiley
+# Happileygsfdgsgs
 
 Aplicativo dirigido inicialmente a smartphones con sistema operativo Android. Es un entorno de comercio electrónico que le permite al usuario iniciar sesión y registrarse para el acceso seguro; se integran  tres roles clave, como el visitante, que explora el catálogo, consulta las especificaciones del producto y añade artículos al carrito de compras; el vendedor, que gestiona sus publicaciones y la venta de sus productos; y el administrador, que tiene el control total del sistema para modificar detalles, remover artículos y administrar las cuentas de usuario, puesto que busca garantizar la existencia de un flujo comercial estructurado, intuitivo y supervisado.
 
