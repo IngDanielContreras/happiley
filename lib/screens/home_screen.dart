@@ -4,23 +4,27 @@ import 'about_credits_screen.dart';
 import 'main_screen.dart';
 
 class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key});
+  final VoidCallback? onExplore;
+
+  const HomeScreen({
+    super.key,
+    this.onExplore,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: HomeContent(
-        onExplore: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => const MainScreen(
-                initialIndex: 1,
+    return HomeContent(
+      onExplore: onExplore ??
+              () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const MainScreen(
+                  initialIndex: 1,
+                ),
               ),
-            ),
-          );
-        },
-      ),
+            );
+          },
     );
   }
 }
@@ -35,43 +39,33 @@ class HomeContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: SingleChildScrollView(
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF5548F5),
+        foregroundColor: Colors.white,
+        automaticallyImplyLeading: false,
+        title: const Text(
+          'Happiley',
+          style: TextStyle(
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
+        ),
+        centerTitle: true,
+        actions: [
+          IconButton(
+            onPressed: () {},
+            icon: const Icon(
+              Icons.notifications_none,
+              color: Colors.white,
+            ),
+          ),
+        ],
+      ),
+      body: SingleChildScrollView(
         child: Column(
           children: [
-            // Header
-            Container(
-              width: double.infinity,
-              height: 56,
-              decoration: const BoxDecoration(
-                color: Color(0xFF5548F5),
-              ),
-              child: Row(
-                mainAxisAlignment:
-                MainAxisAlignment.spaceBetween,
-                children: [
-                  const SizedBox(width: 48),
-
-                  const Text(
-                    'Happiley',
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-
-                  IconButton(
-                    onPressed: () {},
-                    icon: const Icon(
-                      Icons.notifications_none,
-                      color: Colors.white,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
             // Contenido con márgenes
             Padding(
               padding:
@@ -256,18 +250,45 @@ class HomeContent extends StatelessWidget {
                     ),
                   ),
 
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 12),
 
                   // Close application
-                  TextButton(
-                    onPressed: () {
-                      SystemNavigator.pop();
-                    },
-                    child: const Text(
-                      'Cerrar Aplicación',
-                      style: TextStyle(
-                        color: Color(0xFF515A6A),
-                        fontWeight: FontWeight.w500,
+                  SizedBox(
+                    width: double.infinity,
+                    height: 54,
+                    child: OutlinedButton(
+                      onPressed: () {
+                        SystemNavigator.pop();
+                      },
+                      style: OutlinedButton.styleFrom(
+                        backgroundColor: Color(0xFF6D7891),
+                        foregroundColor:
+                        const Color(0xFFFFFFFF),
+                        side: const BorderSide(
+                          color: Color(0xFFE0E3E8),
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius:
+                          BorderRadius.circular(28),
+                        ),
+                      ),
+                      child: const Row(
+                        mainAxisAlignment:
+                        MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.power_settings_new,
+                            size: 20,
+                          ),
+                          SizedBox(width: 10),
+                          Text(
+                            'Cerrar Aplicación',
+                            style: TextStyle(
+                              fontWeight:
+                              FontWeight.w600,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),

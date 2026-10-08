@@ -21,7 +21,6 @@ class AboutCreditsScreen extends StatelessWidget {
             Container(
               width: 120,
               height: 120,
-              padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(24),
                 color: Colors.white,
@@ -33,13 +32,16 @@ class AboutCreditsScreen extends StatelessWidget {
                   ),
                 ],
               ),
-              child: Image.asset(
-                'lib/assets/images/happiley_logo.png',
-                fit: BoxFit.contain,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(24), // Recorta la imagen para que coincida con el contenedor
+                child: Image.asset(
+                  'lib/assets/images/happiley_logo.png',
+                  fit: BoxFit.contain,
+                ),
               ),
             ),
 
-            const SizedBox(height: 24),
+            const SizedBox(height: 20),
 
             const Text(
               'Happiley',
