@@ -69,19 +69,17 @@ class HomeContent extends StatelessWidget {
           children: [
             // Contenido con márgenes
             Padding(
-              padding:
-              const EdgeInsets.symmetric(horizontal: 22),
+              padding: const EdgeInsets.symmetric(horizontal: 22),
               child: Column(
                 children: [
-                  const SizedBox(height: 28),
+                  const SizedBox(height: 20),
 
                   // Welcome card
                   Container(
                     width: double.infinity,
                     height: 285,
                     decoration: BoxDecoration(
-                      borderRadius:
-                      BorderRadius.circular(26),
+                      borderRadius: BorderRadius.circular(26),
                       image: const DecorationImage(
                         image: AssetImage('lib/assets/images/welcome_card1.png'),
                         fit: BoxFit.cover,
@@ -99,10 +97,8 @@ class HomeContent extends StatelessWidget {
                             width: 52,
                             height: 52,
                             decoration: BoxDecoration(
-                              color:
-                              const Color(0xFF5548F5),
-                              borderRadius:
-                              BorderRadius.circular(16),
+                              color: const Color(0xFF5548F5),
+                              borderRadius: BorderRadius.circular(16),
                             ),
                             child: const Icon(
                               Icons.shopping_bag_outlined,
@@ -117,29 +113,23 @@ class HomeContent extends StatelessWidget {
                           left: 22,
                           right: 22,
                           child: Column(
-                            crossAxisAlignment:
-                            CrossAxisAlignment.start,
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: const [
                               Text(
                                 '¡Encuentra lo\nque necesitas!',
                                 style: TextStyle(
                                   fontSize: 28,
                                   height: 1.05,
-                                  fontWeight:
-                                  FontWeight.bold,
-                                  color:
-                                  Color(0xFF000000),
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF000000),
                                 ),
                               ),
-
                               SizedBox(height: 12),
-
                               Text(
                                 'Todo en computación y accesorios\npara tu día a día.',
                                 style: TextStyle(
                                   fontSize: 14,
-                                  color:
-                                  Color(0xFF657080),
+                                  color: Color(0xFF657080),
                                 ),
                               ),
                             ],
@@ -149,7 +139,7 @@ class HomeContent extends StatelessWidget {
                     ),
                   ),
 
-                  const SizedBox(height: 28),
+                  const SizedBox(height: 20),
 
                   // Main button
                   SizedBox(
@@ -158,24 +148,20 @@ class HomeContent extends StatelessWidget {
                     child: FilledButton(
                       onPressed: onExplore,
                       style: FilledButton.styleFrom(
-                        backgroundColor:
-                        const Color(0xFF5548F5),
+                        backgroundColor: const Color(0xFF5548F5),
                         foregroundColor: Colors.white,
                         shape: RoundedRectangleBorder(
-                          borderRadius:
-                          BorderRadius.circular(28),
+                          borderRadius: BorderRadius.circular(28),
                         ),
                       ),
                       child: const Row(
-                        mainAxisAlignment:
-                        MainAxisAlignment.center,
+                        mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Text(
                             'Ingresar a la Tienda',
                             style: TextStyle(
                               fontSize: 15,
-                              fontWeight:
-                              FontWeight.bold,
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
                           SizedBox(width: 10),
@@ -199,25 +185,21 @@ class HomeContent extends StatelessWidget {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) =>
-                            const AboutCreditsScreen(),
+                            builder: (context) => const AboutCreditsScreen(),
                           ),
                         );
                       },
                       style: OutlinedButton.styleFrom(
-                        foregroundColor:
-                        const Color(0xFF101522),
+                        foregroundColor: const Color(0xFF101522),
                         side: const BorderSide(
                           color: Color(0xFFE0E3E8),
                         ),
                         shape: RoundedRectangleBorder(
-                          borderRadius:
-                          BorderRadius.circular(28),
+                          borderRadius: BorderRadius.circular(28),
                         ),
                       ),
                       child: const Row(
-                        mainAxisAlignment:
-                        MainAxisAlignment.center,
+                        mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Icon(
                             Icons.description_outlined,
@@ -227,8 +209,7 @@ class HomeContent extends StatelessWidget {
                           Text(
                             'Acerca de / Créditos',
                             style: TextStyle(
-                              fontWeight:
-                              FontWeight.w600,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
                         ],
@@ -259,19 +240,16 @@ class HomeContent extends StatelessWidget {
                       },
                       style: OutlinedButton.styleFrom(
                         backgroundColor: const Color(0xFF6D7891),
-                        foregroundColor:
-                        const Color(0xFFFFFFFF),
+                        foregroundColor: const Color(0xFFFFFFFF),
                         side: const BorderSide(
                           color: Color(0xFFE0E3E8),
                         ),
                         shape: RoundedRectangleBorder(
-                          borderRadius:
-                          BorderRadius.circular(28),
+                          borderRadius: BorderRadius.circular(28),
                         ),
                       ),
                       child: const Row(
-                        mainAxisAlignment:
-                        MainAxisAlignment.center,
+                        mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Icon(
                             Icons.power_settings_new,
@@ -281,8 +259,7 @@ class HomeContent extends StatelessWidget {
                           Text(
                             'Cerrar Aplicación',
                             style: TextStyle(
-                              fontWeight:
-                              FontWeight.w600,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
                         ],

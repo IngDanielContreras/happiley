@@ -1,4 +1,4 @@
-name: Happiley
+name: happiley
 description: "Aplicativo dirigido inicialmente a smartphones con sistema operativo Android. Es un entorno de comercio electrónico que le permite al usuario iniciar sesión y registrarse para el acceso seguro; se integran tres roles clave, como el visitante, que explora el catálogo, consulta las especificaciones del producto y añade artículos al carrito de compras; el vendedor, que gestiona sus publicaciones y la venta de sus productos; y el administrador, que tiene el control total del sistema para modificar detalles, remover artículos y administrar las cuentas de usuario, puesto que busca garantizar la existencia de un flujo comercial estructurado, intuitivo y supervisado."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
@@ -35,6 +35,7 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
   sqflite: ^2.3.3+1
+
   path: ^1.9.0
 
 dev_dependencies:

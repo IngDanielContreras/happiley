@@ -3,10 +3,12 @@ import '../../models/user.dart';
 
 class RoleOptions extends StatelessWidget {
   final User user;
+  final VoidCallback? onPublishArticle;
 
   const RoleOptions({
     super.key,
     required this.user,
+    this.onPublishArticle,
   });
 
   @override
@@ -15,9 +17,8 @@ class RoleOptions extends StatelessWidget {
     final code = user.code.toUpperCase().trim();
 
     // Determinacion del rol por texto de rol o por prefijo del codigo
-    final isAdmin = (cleanRole == 'administrador' || cleanRole == 'admin') ||
-        code.startsWith('AUR');
-    final isSeller = cleanRole == 'vendedor' || code.startsWith('SUR');
+    final isAdmin = (cleanRole == 'administrador' || cleanRole == 'admin') || code.startsWith('AUR');
+    final isSeller = cleanRole == 'vendedor' || cleanRole == 'seller' || code.startsWith('SUR');
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -32,7 +33,7 @@ class RoleOptions extends StatelessWidget {
         ),
         const SizedBox(height: 12),
 
-        // Opciones universales para todos los usuarios (incluye Visitante)
+        // Opciones universales para todos los usuarios
         _buildOptionTile(
           icon: Icons.history,
           title: 'Historial de Compras / Actividad',
@@ -60,6 +61,16 @@ class RoleOptions extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
+          _buildOptionTile(
+            icon: Icons.add_circle_outline,
+            title: 'Publicar Artículo',
+            subtitle: 'Registrar un nuevo producto en el catálogo',
+            onTap: () {
+              if (onPublishArticle != null) {
+                onPublishArticle!();
+              }
+            },
+          ),
           _buildOptionTile(
             icon: Icons.store,
             title: 'Mis Productos',
