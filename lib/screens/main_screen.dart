@@ -7,16 +7,15 @@ import 'article_detail_screen.dart';
 import '../models/article.dart';
 import '../widgets/bottom_navigation.dart';
 import 'home_screen.dart';
+import '../services/session_manager.dart';
 
-// Pantalla principal - Navegacion usando pestanas
+// Pantalla principal con gestion de navegacion y reactividad de sesion
 class MainScreen extends StatefulWidget {
   final int initialIndex;
-  final dynamic userCode;
 
   const MainScreen({
     super.key,
     this.initialIndex = 0,
-    this.userCode,
   });
 
   @override
@@ -25,17 +24,15 @@ class MainScreen extends StatefulWidget {
 
 class MainScreenState extends State<MainScreen> {
   late int currentIndex;
-  dynamic authenticatedUserCode;
   Article? selectedArticle;
 
   @override
   void initState() {
     super.initState();
     currentIndex = widget.initialIndex;
-    authenticatedUserCode = widget.userCode;
   }
 
-  // Cambio de pestana
+  // Cambio de pestana activa
   void changeTab(int index) {
     setState(() {
       currentIndex = index;
@@ -43,7 +40,7 @@ class MainScreenState extends State<MainScreen> {
     });
   }
 
-  // Seleccion de un articulo para ver su detalle
+  // Seleccion de un articulo para ver en detalle
   void selectArticle(Article article) {
     setState(() {
       selectedArticle = article;
@@ -51,44 +48,31 @@ class MainScreenState extends State<MainScreen> {
     });
   }
 
-  // Regreso a la lista de exploracion
+  // Limpieza del articulo seleccionado
   void clearSelectedArticle() {
     setState(() {
       selectedArticle = null;
     });
   }
 
-  // Registro del inicio de sesion exitoso
+  // Notificacion de inicio de sesion
   void onLoginSuccess(dynamic userCode) {
     setState(() {
-      authenticatedUserCode = userCode;
       currentIndex = 3;
     });
   }
 
-  // Cierre de sesion y regreso al login
-  void onLogout() {
+  // Cierre de sesion reactivo
+  Future<void> onLogout() async {
+    await SessionManager.clearSession();
     setState(() {
-      authenticatedUserCode = null;
       currentIndex = 3;
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    // Definicion dinamica del perfil o pantalla de acceso
-    final Widget profileOrLoginWidget = authenticatedUserCode != null
-        ? ProfileScreen(
-      key: ValueKey('user_profile_$authenticatedUserCode'),
-      userCode: authenticatedUserCode!,
-      onLogout: onLogout,
-    )
-        : LoginScreen(
-      key: const ValueKey('user_login_screen'),
-      onLoginSuccess: onLoginSuccess,
-    );
-
-    // Vista dinamica para la pestana de Exploracion
+    // Vista dinamica para la pestana de exploracion
     final Widget exploreOrDetailWidget = selectedArticle != null
         ? ArticleDetailScreen(
       article: selectedArticle!,
@@ -101,29 +85,43 @@ class MainScreenState extends State<MainScreen> {
       onArticleSelected: selectArticle,
     );
 
-    return Scaffold(
-      // Almacenamiento de interfaces
-      body: IndexedStack(
-        index: currentIndex,
-        children: [
-          HomeScreen(
-            onExplore: () {
-              changeTab(1);
+    return ValueListenableBuilder<String?>(
+      valueListenable: SessionManager.activeUserCode,
+      builder: (context, userCode, child) {
+        // Seleccion automatica entre Perfil y Formulario de Login
+        final Widget profileOrLoginWidget = userCode != null
+            ? ProfileScreen(
+          key: ValueKey('user_profile_$userCode'),
+          userCode: userCode,
+          onLogout: onLogout,
+        )
+            : LoginScreen(
+          key: const ValueKey('user_login_screen'),
+          onLoginSuccess: onLoginSuccess,
+        );
+
+        return Scaffold(
+          body: IndexedStack(
+            index: currentIndex,
+            children: [
+              HomeScreen(
+                onExplore: () {
+                  changeTab(1);
+                },
+              ),
+              exploreOrDetailWidget,
+              const CartScreen(),
+              profileOrLoginWidget,
+            ],
+          ),
+          bottomNavigationBar: BottomNavigation(
+            selectedIndex: currentIndex,
+            onIndexChanged: (index) {
+              changeTab(index);
             },
           ),
-          exploreOrDetailWidget,
-          const CartScreen(),
-          profileOrLoginWidget,
-        ],
-      ),
-
-      // Barra de navegacion inferior
-      bottomNavigationBar: BottomNavigation(
-        selectedIndex: currentIndex,
-        onIndexChanged: (index) {
-          changeTab(index);
-        },
-      ),
+        );
+      },
     );
   }
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../database/user_service.dart';
+import '../services/session_manager.dart';
 
 class LoginScreen extends StatefulWidget {
   final Function(String userCode)? onLoginSuccess;
@@ -71,16 +72,19 @@ class _LoginScreenState extends State<LoginScreen>
       selectedRole: selectedRole,
     );
 
-    if (!mounted) return;
-
     if (user != null) {
-      // Notificacion y redireccion de inicio de sesion exitoso
+      // Registro de sesion mediante SessionManager
+      await SessionManager.saveSession(user.code);
+
+      if (!mounted) return;
+
+      // Redireccion o notificacion de exito
       if (widget.onLoginSuccess != null) {
         widget.onLoginSuccess!(user.code);
       } else if (Navigator.canPop(context)) {
         Navigator.pop(context, user.code);
       }
-    } else {
+    } else if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Contraseña incorrecta o datos no válidos.'),
@@ -172,7 +176,7 @@ class _LoginScreenState extends State<LoginScreen>
 
               const SizedBox(height: 36),
 
-              // Selector de roles con TabController
+              // Selector de roles
               Container(
                 height: 44,
                 padding: const EdgeInsets.all(3),
@@ -211,7 +215,7 @@ class _LoginScreenState extends State<LoginScreen>
 
               const SizedBox(height: 26),
 
-              // Correo
+              // Campo de Correo
               const Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
@@ -266,7 +270,7 @@ class _LoginScreenState extends State<LoginScreen>
 
               const SizedBox(height: 17),
 
-              // Contrasena
+              // Campo de Contrasena
               const Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
@@ -335,7 +339,7 @@ class _LoginScreenState extends State<LoginScreen>
 
               const SizedBox(height: 13),
 
-              // Politica de privacidad
+              // Politica de Privacidad
               _buildCheckRow(
                 value: acceptPrivacy,
                 text: 'Acepto la ',
@@ -360,7 +364,7 @@ class _LoginScreenState extends State<LoginScreen>
 
               const SizedBox(height: 17),
 
-              // Boton iniciar sesion
+              // Boton Iniciar Sesion
               SizedBox(
                 width: double.infinity,
                 height: 49,
@@ -440,7 +444,7 @@ class _LoginScreenState extends State<LoginScreen>
 
               const SizedBox(height: 18),
 
-              // Redes sociales
+              // Acceso con redes
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -472,7 +476,7 @@ class _LoginScreenState extends State<LoginScreen>
 
               const SizedBox(height: 20),
 
-              // Registro
+              // Registro de nuevo usuario
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [

@@ -1,8 +1,16 @@
 import 'package:flutter/material.dart';
+import '../services/session_manager.dart';
+import '../services/cart_manager.dart';
 import 'screens/main_screen.dart';
 
-void main() {
+void main() async {
+  // Asegura la inicializacion de los bindings de Flutter
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Carga previa de la sesion guardada en la base de datos
+  await SessionManager.loadSavedSession();
+  await CartManager.loadSavedCart();
+
   runApp(const MyApp());
 }
 
