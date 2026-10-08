@@ -3,6 +3,8 @@ import 'explore_screen.dart';
 import 'cart_screen.dart';
 import 'profile_screen.dart';
 import 'login_screen.dart';
+import 'article_detail_screen.dart';
+import '../models/article.dart';
 import '../widgets/bottom_navigation.dart';
 import 'home_screen.dart';
 
@@ -24,6 +26,7 @@ class MainScreen extends StatefulWidget {
 class MainScreenState extends State<MainScreen> {
   late int currentIndex;
   int? authenticatedUserId;
+  Article? selectedArticle;
 
   @override
   void initState() {
@@ -36,6 +39,22 @@ class MainScreenState extends State<MainScreen> {
   void changeTab(int index) {
     setState(() {
       currentIndex = index;
+      selectedArticle = null; // Limpia la selección al cambiar de pestaña
+    });
+  }
+
+  // Selección de un artículo para ver su detalle
+  void selectArticle(Article article) {
+    setState(() {
+      selectedArticle = article;
+      currentIndex = 1;
+    });
+  }
+
+  // Regreso a la lista de exploración
+  void clearSelectedArticle() {
+    setState(() {
+      selectedArticle = null;
     });
   }
 
@@ -69,17 +88,30 @@ class MainScreenState extends State<MainScreen> {
       onLoginSuccess: onLoginSuccess,
     );
 
+    // Vista dinámica para la pestaña de Exploración
+    final Widget exploreOrDetailWidget = selectedArticle != null
+        ? ArticleDetailScreen(
+      article: selectedArticle!,
+      onBack: clearSelectedArticle,
+    )
+        : ExploreScreen(
+      onCartPressed: () {
+        changeTab(2);
+      },
+      onArticleSelected: selectArticle,
+    );
+
     return Scaffold(
       // Almacenamiento de interfaces
       body: IndexedStack(
         index: currentIndex,
         children: [
-          const HomeScreen(),
-          ExploreScreen(
-            onCartPressed: () {
-              changeTab(2);
+          HomeScreen(
+            onExplore: () {
+              changeTab(1);
             },
           ),
+          exploreOrDetailWidget,
           const CartScreen(),
           profileOrLoginWidget,
         ],

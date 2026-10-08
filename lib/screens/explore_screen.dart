@@ -7,10 +7,12 @@ import '../services/cart_manager.dart';
 
 class ExploreScreen extends StatefulWidget {
   final VoidCallback onCartPressed;
+  final ValueChanged<Article>? onArticleSelected;
 
   const ExploreScreen({
     super.key,
     required this.onCartPressed,
+    this.onArticleSelected,
   });
 
   @override

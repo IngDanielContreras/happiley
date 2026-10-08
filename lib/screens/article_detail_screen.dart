@@ -1,13 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../models/article.dart';
 import '../services/cart_manager.dart';
-import '../widgets/bottom_navigation.dart';
 import 'image_viewer_screen.dart';
 
 class ArticleDetailScreen extends StatelessWidget {
   final Article article;
+  final VoidCallback onBack;
 
-  const ArticleDetailScreen({super.key, required this.article});
+  const ArticleDetailScreen({
+    super.key,
+    required this.article,
+    required this.onBack,
+  });
 
   // Formato para el precio en COP
   String formatPrice(double price) {
@@ -20,6 +25,16 @@ class ArticleDetailScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(
+        toolbarHeight: 0,
+        backgroundColor: const Color(0xFF5548F5),
+        elevation: 0,
+        systemOverlayStyle: const SystemUiOverlayStyle(
+          statusBarColor: Color(0xFF5548F5),
+          statusBarIconBrightness: Brightness.light,
+          statusBarBrightness: Brightness.dark,
+        ),
+      ),
       body: SafeArea(
         child: Column(
           children: [
@@ -57,7 +72,7 @@ class ArticleDetailScreen extends StatelessWidget {
                     backgroundColor: Colors.white,
                     child: IconButton(
                       icon: const Icon(Icons.arrow_back, color: Colors.black),
-                      onPressed: () => Navigator.pop(context),
+                      onPressed: onBack,
                     ),
                   ),
                 ),
@@ -96,7 +111,10 @@ class ArticleDetailScreen extends StatelessWidget {
                             ),
                           ),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 4,
+                            ),
                             decoration: BoxDecoration(
                               color: const Color(0xFF2D2DA8),
                               borderRadius: BorderRadius.circular(8),
@@ -208,12 +226,6 @@ class ArticleDetailScreen extends StatelessWidget {
             ),
           ],
         ),
-      ),
-
-      // Implementación de Barra de Navegación
-      bottomNavigationBar: BottomNavigation(
-        selectedIndex: 1,
-        onIndexChanged: (index) {},
       ),
     );
   }

@@ -33,7 +33,10 @@ class ArticleCard extends StatelessWidget {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => ArticleDetailScreen(article: article),
+              builder: (context) => ArticleDetailScreen(
+                article: article,
+                onBack: () => Navigator.pop(context),
+              ),
             ),
           );
         },
