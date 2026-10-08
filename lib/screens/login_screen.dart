@@ -114,7 +114,7 @@ class _LoginScreenState extends State<LoginScreen>
           padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Column(
             children: [
-              const SizedBox(height: 10),
+              const SizedBox(height: 25),
 
               // Boton Volver
               if (Navigator.canPop(context))
