@@ -8,15 +8,15 @@ import '../models/article.dart';
 import '../widgets/bottom_navigation.dart';
 import 'home_screen.dart';
 
-// Pantalla principal - Navegacion usando pestañas
+// Pantalla principal - Navegacion usando pestanas
 class MainScreen extends StatefulWidget {
   final int initialIndex;
-  final int? userId;
+  final dynamic userCode;
 
   const MainScreen({
     super.key,
     this.initialIndex = 0,
-    this.userId,
+    this.userCode,
   });
 
   @override
@@ -25,25 +25,25 @@ class MainScreen extends StatefulWidget {
 
 class MainScreenState extends State<MainScreen> {
   late int currentIndex;
-  int? authenticatedUserId;
+  dynamic authenticatedUserCode;
   Article? selectedArticle;
 
   @override
   void initState() {
     super.initState();
     currentIndex = widget.initialIndex;
-    authenticatedUserId = widget.userId;
+    authenticatedUserCode = widget.userCode;
   }
 
-  // Cambio de pestaña
+  // Cambio de pestana
   void changeTab(int index) {
     setState(() {
       currentIndex = index;
-      selectedArticle = null; // Limpia la selección al cambiar de pestaña
+      selectedArticle = null;
     });
   }
 
-  // Selección de un artículo para ver su detalle
+  // Seleccion de un articulo para ver su detalle
   void selectArticle(Article article) {
     setState(() {
       selectedArticle = article;
@@ -51,7 +51,7 @@ class MainScreenState extends State<MainScreen> {
     });
   }
 
-  // Regreso a la lista de exploración
+  // Regreso a la lista de exploracion
   void clearSelectedArticle() {
     setState(() {
       selectedArticle = null;
@@ -59,9 +59,9 @@ class MainScreenState extends State<MainScreen> {
   }
 
   // Registro del inicio de sesion exitoso
-  void onLoginSuccess(int userId) {
+  void onLoginSuccess(dynamic userCode) {
     setState(() {
-      authenticatedUserId = userId;
+      authenticatedUserCode = userCode;
       currentIndex = 3;
     });
   }
@@ -69,18 +69,18 @@ class MainScreenState extends State<MainScreen> {
   // Cierre de sesion y regreso al login
   void onLogout() {
     setState(() {
-      authenticatedUserId = null;
+      authenticatedUserCode = null;
       currentIndex = 3;
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    // Definicion dinamica del perfil
-    final Widget profileOrLoginWidget = authenticatedUserId != null
+    // Definicion dinamica del perfil o pantalla de acceso
+    final Widget profileOrLoginWidget = authenticatedUserCode != null
         ? ProfileScreen(
-      key: ValueKey('user_profile_$authenticatedUserId'),
-      userId: authenticatedUserId!,
+      key: ValueKey('user_profile_$authenticatedUserCode'),
+      userCode: authenticatedUserCode!,
       onLogout: onLogout,
     )
         : LoginScreen(
@@ -88,7 +88,7 @@ class MainScreenState extends State<MainScreen> {
       onLoginSuccess: onLoginSuccess,
     );
 
-    // Vista dinámica para la pestaña de Exploración
+    // Vista dinamica para la pestana de Exploracion
     final Widget exploreOrDetailWidget = selectedArticle != null
         ? ArticleDetailScreen(
       article: selectedArticle!,

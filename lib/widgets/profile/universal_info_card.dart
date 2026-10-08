@@ -15,7 +15,7 @@ class UniversalInfoCard extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
-          'Informacion de la Cuenta',
+          'Información de la Cuenta',
           style: TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.bold,

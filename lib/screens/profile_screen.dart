@@ -7,12 +7,12 @@ import '../widgets/profile/admin_attributes.dart';
 import '../widgets/profile/role_options.dart';
 
 class ProfileScreen extends StatefulWidget {
-  final int userId;
+  final dynamic userCode;
   final VoidCallback? onLogout;
 
   const ProfileScreen({
     super.key,
-    required this.userId,
+    required this.userCode,
     this.onLogout,
   });
 
@@ -28,7 +28,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void initState() {
     super.initState();
     // Carga inicial con los datos del usuario
-    _userFuture = _userService.getUserById(widget.userId);
+    _loadUserData();
+  }
+
+  @override
+  void didUpdateWidget(covariant ProfileScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Recarga la informacion si el identificador cambia en la interfaz
+    if (oldWidget.userCode != widget.userCode) {
+      _loadUserData();
+    }
+  }
+
+  // Carga de la información del usuario desde la base de datos
+  void _loadUserData() {
+    setState(() {
+      _userFuture = _userService.getUserById(widget.userCode);
+    });
   }
 
   // Carga de nueva foto de perfil
@@ -70,7 +86,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
-                    'No se pudo cargar la informacion del usuario (ID: ${widget.userId})',
+                    'Oops! Tenemos problemas para cargar\nla información del usuario (ID: ${widget.userCode}).\n|Inténtalo Más Tarde|.',
                     style: const TextStyle(fontSize: 16),
                   ),
                   const SizedBox(height: 12),

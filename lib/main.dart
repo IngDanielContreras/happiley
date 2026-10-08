@@ -1,18 +1,13 @@
 import 'package:flutter/material.dart';
-import 'screens/home_screen.dart';
-import 'services/cart_manager.dart';
+import 'screens/main_screen.dart';
 
-void main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // Carga de articulos persistidos
-  await CartManager.loadSavedCart();
-
-  runApp(const HappileyApp());
+  runApp(const MyApp());
 }
 
-class HappileyApp extends StatelessWidget {
-  const HappileyApp({super.key});
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -21,12 +16,12 @@ class HappileyApp extends StatelessWidget {
       title: 'Happiley',
       theme: ThemeData(
         useMaterial3: true,
-        fontFamily: 'Roboto',
+        scaffoldBackgroundColor: Colors.white,
         colorScheme: ColorScheme.fromSeed(
           seedColor: const Color(0xFF5548F5),
         ),
       ),
-      home: const HomeScreen(),
+      home: const MainScreen(),
     );
   }
 }

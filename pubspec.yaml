@@ -61,6 +61,7 @@ flutter:
   assets:
     - lib/assets/images/
     - lib/assets/images/articles/
+    - lib/assets/gifs/welcome_card.gif
     - lib/database/happiley.db
     - lib/database/persistence.db
 

@@ -56,35 +56,32 @@ class UserService {
   }
 
   // Obtencion de usuario por identificador
-  Future<User?> getUserById(int id) async {
+  Future<User?> getUserById(dynamic identifier) async {
     final db = await _articleService.database;
+    final String searchVal = identifier.toString();
 
     final result = await db.query(
       'users',
-      where: 'id = ?',
-      whereArgs: [id],
+      where: 'code = ? OR id = ?',
+      whereArgs: [searchVal, searchVal],
     );
 
     if (result.isNotEmpty) {
-      final user = User.fromMap(result.first);
-
-      // Verificacion de seguridad sobre el prefijo del codigo
-      if (isValidRoleCode(user.code, user.role)) {
-        return user;
-      }
+      return User.fromMap(result.first);
     }
     return null;
   }
 
   // Actualizacion de la ruta de la imagen del usuario
-  Future<void> updateUserImage(int userId, String imagePath) async {
+  Future<void> updateUserImage(dynamic userCode, String imagePath) async {
     final db = await _articleService.database;
+    final String searchVal = userCode.toString();
 
     await db.update(
       'users',
       {'image': imagePath},
-      where: 'id = ?',
-      whereArgs: [userId],
+      where: 'code = ? OR id = ?',
+      whereArgs: [searchVal, searchVal],
     );
   }
 }

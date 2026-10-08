@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../database/user_service.dart';
 
 class LoginScreen extends StatefulWidget {
-  final Function(int userId)? onLoginSuccess;
+  final Function(String userCode)? onLoginSuccess;
 
   const LoginScreen({
     super.key,
@@ -71,12 +71,16 @@ class _LoginScreenState extends State<LoginScreen>
       selectedRole: selectedRole,
     );
 
-    if (user != null && mounted) {
-      // Notificacion de inicio de sesion exitoso
+    if (!mounted) return;
+
+    if (user != null) {
+      // Notificacion y redireccion de inicio de sesion exitoso
       if (widget.onLoginSuccess != null) {
-        widget.onLoginSuccess!(user.id);
+        widget.onLoginSuccess!(user.code);
+      } else if (Navigator.canPop(context)) {
+        Navigator.pop(context, user.code);
       }
-    } else if (mounted) {
+    } else {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Contraseña incorrecta o datos no válidos.'),
@@ -96,7 +100,7 @@ class _LoginScreenState extends State<LoginScreen>
             children: [
               const SizedBox(height: 10),
 
-              // Botón Volver
+              // Boton Volver
               if (Navigator.canPop(context))
                 Align(
                   alignment: Alignment.centerLeft,
@@ -136,7 +140,7 @@ class _LoginScreenState extends State<LoginScreen>
                   ],
                 ),
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(24), // Recorta la imagen para que coincida con el contenedor
+                  borderRadius: BorderRadius.circular(24),
                   child: Image.asset(
                     'lib/assets/images/happiley_logo.png',
                     fit: BoxFit.contain,
@@ -146,7 +150,7 @@ class _LoginScreenState extends State<LoginScreen>
 
               const SizedBox(height: 12),
 
-              // Nombre de la aplicación
+              // Nombre de la aplicacion
               const Text(
                 'Happiley',
                 style: TextStyle(
@@ -262,7 +266,7 @@ class _LoginScreenState extends State<LoginScreen>
 
               const SizedBox(height: 17),
 
-              // Contraseña
+              // Contrasena
               const Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
@@ -331,7 +335,7 @@ class _LoginScreenState extends State<LoginScreen>
 
               const SizedBox(height: 13),
 
-              // Política de privacidad
+              // Politica de privacidad
               _buildCheckRow(
                 value: acceptPrivacy,
                 text: 'Acepto la ',
@@ -356,7 +360,7 @@ class _LoginScreenState extends State<LoginScreen>
 
               const SizedBox(height: 17),
 
-              // Botón iniciar sesión
+              // Boton iniciar sesion
               SizedBox(
                 width: double.infinity,
                 height: 49,
@@ -393,7 +397,7 @@ class _LoginScreenState extends State<LoginScreen>
 
               const SizedBox(height: 22),
 
-              // Recuperar contraseña
+              // Recuperar contrasena
               TextButton(
                 onPressed: () {},
                 child: const Text(

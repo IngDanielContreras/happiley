@@ -30,36 +30,12 @@ class ProfileHeader extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    _getFormattedName(user.firstName, user.lastName),
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  // Boton de cerrar sesion
-                  TextButton.icon(
-                    style: TextButton.styleFrom(
-                      foregroundColor: const Color(0xFFFF6E6E),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                    ),
-                    onPressed: onLogout,
-                    icon: const Icon(Icons.logout, size: 16),
-                    label: const Text(
-                      'Salir',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
+              Text(
+                _getFormattedName(user.firstName, user.lastName),
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               const SizedBox(height: 6),
               Text(
@@ -74,6 +50,32 @@ class ProfileHeader extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 13,
                   color: Colors.grey.shade700,
+                ),
+              ),
+              const SizedBox(height: 10),
+
+              // Boton de cerrar sesion
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Color(0xFFF10202),
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                onPressed: onLogout,
+                icon: const Icon(Icons.logout, size: 14),
+                label: const Text(
+                  'Cerrar Sesión',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ],
@@ -101,6 +103,7 @@ class ProfileHeader extends StatelessWidget {
                   )
                       : null,
                 ),
+
                 // Vista ovalada del rol
                 Container(
                   padding: const EdgeInsets.symmetric(

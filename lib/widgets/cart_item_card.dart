@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/article.dart';
 import '../screens/article_detail_screen.dart';
 import '../services/app_utils.dart';
+import 'alert_message.dart';
 
 // Tarjeta de entrada del articulo de compra
 class CartItemCard extends StatelessWidget {
@@ -141,7 +142,18 @@ class CartItemCard extends StatelessWidget {
                   Icons.delete_outline,
                   color: Colors.redAccent,
                 ),
-                onPressed: onRemove,
+                onPressed: () {
+                  // Alerta de eliminación de artículo
+                  AlertMessage.show(
+                    context: context,
+                    title: 'Eliminar Artículo',
+                    message: '¿Desea borrar el artículo?',
+                    confirmText: 'Sí',
+                    cancelText: 'No',
+                    isConfirmDefault: false,
+                    onConfirm: onRemove,
+                  );
+                },
               ),
             ],
           ),

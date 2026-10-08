@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'about_credits_screen.dart';
 import 'main_screen.dart';
+import '../widgets/alert_message.dart';
 
 class HomeScreen extends StatelessWidget {
   final VoidCallback? onExplore;
@@ -81,13 +82,9 @@ class HomeContent extends StatelessWidget {
                     decoration: BoxDecoration(
                       borderRadius:
                       BorderRadius.circular(26),
-                      gradient: const LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          Color(0xFFF4F8FF),
-                          Color(0xFFEAF1FC),
-                        ],
+                      image: const DecorationImage(
+                        image: AssetImage('lib/assets/images/welcome_card1.png'),
+                        fit: BoxFit.cover,
                       ),
                       border: Border.all(
                         color: const Color(0xFFE1E5EB),
@@ -116,17 +113,6 @@ class HomeContent extends StatelessWidget {
                         ),
 
                         Positioned(
-                          top: 80,
-                          right: 25,
-                          child: Icon(
-                            Icons.devices_outlined,
-                            size: 105,
-                            color: Colors.white
-                                .withValues(alpha: 0.75),
-                          ),
-                        ),
-
-                        Positioned(
                           bottom: 25,
                           left: 22,
                           right: 22,
@@ -135,21 +121,21 @@ class HomeContent extends StatelessWidget {
                             CrossAxisAlignment.start,
                             children: const [
                               Text(
-                                '¡Bienvenido a\nHappiley!',
+                                '¡Encuentra lo\nque necesitas!',
                                 style: TextStyle(
                                   fontSize: 28,
                                   height: 1.05,
                                   fontWeight:
                                   FontWeight.bold,
                                   color:
-                                  Color(0xFF101522),
+                                  Color(0xFF000000),
                                 ),
                               ),
 
                               SizedBox(height: 12),
 
                               Text(
-                                'Tu destino para lo mejor en tecnología',
+                                'Todo en computación y accesorios\npara tu día a día.',
                                 style: TextStyle(
                                   fontSize: 14,
                                   color:
@@ -258,10 +244,21 @@ class HomeContent extends StatelessWidget {
                     height: 54,
                     child: OutlinedButton(
                       onPressed: () {
-                        SystemNavigator.pop();
+                        // Alerta de cierre del aplicativo
+                        AlertMessage.show(
+                          context: context,
+                          title: 'Cerrar Aplicación',
+                          message: '¿Está seguro de que desea cerrar la aplicación?',
+                          confirmText: 'Sí',
+                          cancelText: 'No',
+                          isConfirmDefault: false,
+                          onConfirm: () {
+                            SystemNavigator.pop();
+                          },
+                        );
                       },
                       style: OutlinedButton.styleFrom(
-                        backgroundColor: Color(0xFF6D7891),
+                        backgroundColor: const Color(0xFF6D7891),
                         foregroundColor:
                         const Color(0xFFFFFFFF),
                         side: const BorderSide(
