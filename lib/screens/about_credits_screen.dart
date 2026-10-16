@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../widgets/custom_app_bar.dart';
 
 class AboutCreditsScreen extends StatelessWidget {
   const AboutCreditsScreen({super.key});
@@ -6,10 +7,10 @@ class AboutCreditsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Acerca de / Créditos'),
-        centerTitle: true,
+      appBar: const CustomAppBar(
+        title: 'Acerca de / Créditos',
       ),
+      backgroundColor: Colors.white,
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(
@@ -23,7 +24,7 @@ class AboutCreditsScreen extends StatelessWidget {
               height: 120,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(24),
-                color: Colors.white,
+                color: const Color(0xFF5548F5),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withValues(alpha: 0.08),
@@ -33,7 +34,7 @@ class AboutCreditsScreen extends StatelessWidget {
                 ],
               ),
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(24), // Recorta la imagen para que coincida con el contenedor
+                borderRadius: BorderRadius.circular(24),
                 child: Image.asset(
                   'lib/assets/images/happiley_logo.png',
                   fit: BoxFit.contain,
@@ -43,6 +44,7 @@ class AboutCreditsScreen extends StatelessWidget {
 
             const SizedBox(height: 20),
 
+            // Nombre corporativo de la marca
             const Text(
               'Happiley',
               style: TextStyle(
@@ -54,6 +56,7 @@ class AboutCreditsScreen extends StatelessWidget {
 
             const SizedBox(height: 12),
 
+            // Descripcion comercial de la aplicacion
             const Text(
               'Aplicación de comercio electrónico',
               textAlign: TextAlign.center,
@@ -65,6 +68,7 @@ class AboutCreditsScreen extends StatelessWidget {
 
             const SizedBox(height: 32),
 
+            // Encabezado de seccion de creditos
             const Text(
               'Créditos',
               style: TextStyle(
@@ -104,10 +108,11 @@ class AboutCreditsScreen extends StatelessWidget {
               'Diseño de Software II',
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 15),
-              ),
+            ),
 
             const SizedBox(height: 24),
 
+            // Informacion institucional de la entidad educativa
             const Text(
               'Escuela Tecnológica Instituto Técnico Central',
               textAlign: TextAlign.center,
@@ -142,6 +147,7 @@ class AboutCreditsScreen extends StatelessWidget {
 
             const SizedBox(height: 6),
 
+            // Nombre del autor y desarrollador del proyecto
             const Text(
               'Daniel Felipe Contreras Tejedor',
               textAlign: TextAlign.center,

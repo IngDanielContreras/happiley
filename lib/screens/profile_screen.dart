@@ -5,6 +5,7 @@ import '../widgets/profile/profile_header.dart';
 import '../widgets/profile/universal_info_card.dart';
 import '../widgets/profile/admin_attributes.dart';
 import '../widgets/profile/role_options.dart';
+import '../widgets/custom_app_bar.dart';
 
 class ProfileScreen extends StatefulWidget {
   final dynamic userCode;
@@ -55,17 +56,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF5548F5),
-        foregroundColor: Colors.white,
-        title: const Text(
-          'Perfil de Usuario',
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        centerTitle: true,
+      appBar: const CustomAppBar(
+        title: 'Perfil de Usuario',
       ),
       body: FutureBuilder<User?>(
         future: _userFuture,

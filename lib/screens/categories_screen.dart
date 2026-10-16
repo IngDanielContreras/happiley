@@ -7,7 +7,7 @@ class CategoriesScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return const Center(
       child: Text(
-        'Categorías',
+        'Categorias',
         style: TextStyle(
           fontSize: 24,
           fontWeight: FontWeight.bold,

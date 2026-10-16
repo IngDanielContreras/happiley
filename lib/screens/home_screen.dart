@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'about_credits_screen.dart';
 import 'main_screen.dart';
 import '../widgets/alert_message.dart';
+import '../widgets/loading_dialog.dart';
 
 class HomeScreen extends StatelessWidget {
   final VoidCallback? onExplore;
@@ -12,35 +13,61 @@ class HomeScreen extends StatelessWidget {
     this.onExplore,
   });
 
+  // Despliegue de animación de salida
+  void _showExitAnimation(BuildContext context) async {
+    LoadingDialog.show(
+      context,
+      title: '¡Gracias por usar Happiley!',
+      subtitle: 'Nos vemos pronto.',
+      autoDismiss: true,
+      duration: const Duration(seconds: 5),
+    );
+    await Future.delayed(const Duration(seconds: 5));
+    SystemNavigator.pop();
+  }
+
   @override
   Widget build(BuildContext context) {
-    return HomeContent(
-      onExplore: onExplore ??
-              () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const MainScreen(
-                  initialIndex: 1,
+    // Evasion de cierre accidental con boton atras
+    return PopScope<Object?>(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        _showExitAnimation(context);
+      },
+      child: HomeContent(
+        onExitApp: () => _showExitAnimation(context),
+        onExplore: onExplore ??
+                () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const MainScreen(
+                    initialIndex: 1,
+                  ),
                 ),
-              ),
-            );
-          },
+              );
+            },
+      ),
     );
   }
 }
 
 class HomeContent extends StatelessWidget {
   final VoidCallback onExplore;
+  final VoidCallback onExitApp;
 
   const HomeContent({
     super.key,
     required this.onExplore,
+    required this.onExitApp,
   });
 
+// Estructura visual
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      // Barra superior corporativa de la aplicacion
       appBar: AppBar(
         backgroundColor: const Color(0xFF5548F5),
         foregroundColor: Colors.white,
@@ -55,6 +82,7 @@ class HomeContent extends StatelessWidget {
         ),
         centerTitle: true,
         actions: [
+          // Icono de notificaciones superior derecho
           IconButton(
             onPressed: () {},
             icon: const Icon(
@@ -67,14 +95,13 @@ class HomeContent extends StatelessWidget {
       body: SingleChildScrollView(
         child: Column(
           children: [
-            // Contenido con márgenes
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 22),
               child: Column(
                 children: [
                   const SizedBox(height: 20),
 
-                  // Welcome card
+                  // Tarjeta publicitaria de bienvenida principal
                   Container(
                     width: double.infinity,
                     height: 285,
@@ -90,6 +117,7 @@ class HomeContent extends StatelessWidget {
                     ),
                     child: Stack(
                       children: [
+                        // Contenedor decorativo con icono de bolsa de compras
                         Positioned(
                           top: 22,
                           left: 22,
@@ -108,6 +136,7 @@ class HomeContent extends StatelessWidget {
                           ),
                         ),
 
+                        // Textos promocionales de la tarjeta de bienvenida
                         Positioned(
                           bottom: 25,
                           left: 22,
@@ -141,7 +170,7 @@ class HomeContent extends StatelessWidget {
 
                   const SizedBox(height: 20),
 
-                  // Main button
+                  // Boton principal de acceso a la tienda
                   SizedBox(
                     width: double.infinity,
                     height: 54,
@@ -176,7 +205,7 @@ class HomeContent extends StatelessWidget {
 
                   const SizedBox(height: 12),
 
-                  // Credits button
+                  // Boton de seccion de creditos y detalles
                   SizedBox(
                     width: double.infinity,
                     height: 54,
@@ -219,13 +248,12 @@ class HomeContent extends StatelessWidget {
 
                   const SizedBox(height: 12),
 
-                  // Close application
+                  // Boton de salida del aplicativo
                   SizedBox(
                     width: double.infinity,
                     height: 54,
                     child: OutlinedButton(
                       onPressed: () {
-                        // Alerta de cierre del aplicativo
                         AlertMessage.show(
                           context: context,
                           title: 'Cerrar Aplicación',
@@ -234,7 +262,7 @@ class HomeContent extends StatelessWidget {
                           cancelText: 'No',
                           isConfirmDefault: false,
                           onConfirm: () {
-                            SystemNavigator.pop();
+                            onExitApp();
                           },
                         );
                       },

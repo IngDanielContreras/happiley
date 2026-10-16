@@ -39,6 +39,7 @@ class CartItemCard extends StatelessWidget {
               builder: (context) => ArticleDetailScreen(
                 article: article,
                 onBack: () => Navigator.pop(context),
+                onBuyNow: () => Navigator.pop(context),
               ),
             ),
           );

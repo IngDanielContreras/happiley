@@ -1,16 +1,17 @@
 import 'package:flutter/material.dart';
 import '../models/article.dart';
 import '../services/cart_manager.dart';
-import '../screens/article_detail_screen.dart';
 
 class ArticleCard extends StatelessWidget {
   final Article article;
   final VoidCallback? onBuy;
+  final VoidCallback? onTap;
 
   const ArticleCard({
     super.key,
     required this.article,
     this.onBuy,
+    this.onTap,
   });
 
   String formatPrice(double price) {
@@ -29,17 +30,7 @@ class ArticleCard extends StatelessWidget {
       ),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => ArticleDetailScreen(
-                article: article,
-                onBack: () => Navigator.pop(context),
-              ),
-            ),
-          );
-        },
+        onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.all(10),
           child: Column(

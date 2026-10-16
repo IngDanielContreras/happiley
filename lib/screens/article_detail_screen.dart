@@ -1,20 +1,22 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import '../models/article.dart';
 import '../services/cart_manager.dart';
+import '../widgets/custom_app_bar.dart';
 import 'image_viewer_screen.dart';
 
 class ArticleDetailScreen extends StatelessWidget {
   final Article article;
   final VoidCallback onBack;
+  final VoidCallback onBuyNow;
 
   const ArticleDetailScreen({
     super.key,
     required this.article,
     required this.onBack,
+    required this.onBuyNow,
   });
 
-  // Formato para el precio en COP
+  // Formato del precio en pesos colombianos (COP)
   String formatPrice(double price) {
     return '\$${price.toStringAsFixed(0).replaceAllMapped(
       RegExp(r'(\d)(?=(\d{3})+$)'),
@@ -22,23 +24,23 @@ class ArticleDetailScreen extends StatelessWidget {
     )} COP';
   }
 
+  // Adicion del producto al carrito y activacion de flujo de compra inmediata
+  void _buyNow() {
+    if (!CartManager.isSelected(article)) {
+      CartManager.toggleProduct(article);
+    }
+
+    onBuyNow();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        toolbarHeight: 0,
-        backgroundColor: const Color(0xFF5548F5),
-        elevation: 0,
-        systemOverlayStyle: const SystemUiOverlayStyle(
-          statusBarColor: Color(0xFF5548F5),
-          statusBarIconBrightness: Brightness.light,
-          statusBarBrightness: Brightness.dark,
-        ),
-      ),
+      appBar: CustomAppBar.statusOnly(),
       body: SafeArea(
         child: Column(
           children: [
-            // Imagen principal y boton atras
+            // Contenedor superior con la imagen del articulo y boton de regreso
             Stack(
               children: [
                 Container(
@@ -47,6 +49,11 @@ class ArticleDetailScreen extends StatelessWidget {
                   color: Colors.grey.shade100,
                   child: GestureDetector(
                     onTap: () {
+                      if (article.image == null ||
+                          article.image!.isEmpty) {
+                        return;
+                      }
+
                       Navigator.push(
                         context,
                         MaterialPageRoute(
@@ -58,9 +65,27 @@ class ArticleDetailScreen extends StatelessWidget {
                     },
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(12),
-                      child: Image.asset(
+                      child: article.image != null &&
+                          article.image!.isNotEmpty
+                          ? Image.asset(
                         article.image!,
                         fit: BoxFit.contain,
+                        errorBuilder: (context, error, stackTrace) {
+                          return const Center(
+                            child: Icon(
+                              Icons.image_not_supported,
+                              size: 60,
+                              color: Colors.grey,
+                            ),
+                          );
+                        },
+                      )
+                          : const Center(
+                        child: Icon(
+                          Icons.image_not_supported,
+                          size: 60,
+                          color: Colors.grey,
+                        ),
                       ),
                     ),
                   ),
@@ -71,7 +96,10 @@ class ArticleDetailScreen extends StatelessWidget {
                   child: CircleAvatar(
                     backgroundColor: Colors.white,
                     child: IconButton(
-                      icon: const Icon(Icons.arrow_back, color: Colors.black),
+                      icon: const Icon(
+                        Icons.arrow_back,
+                        color: Colors.black,
+                      ),
                       onPressed: onBack,
                     ),
                   ),
@@ -79,7 +107,7 @@ class ArticleDetailScreen extends StatelessWidget {
               ],
             ),
 
-            // Informacion del articulo
+            // Seccion detallada con información del articulo (precio, stock y descripcion del producto)
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.all(16),
@@ -87,7 +115,7 @@ class ArticleDetailScreen extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Titulo
+                      // Nombre principal del producto
                       Text(
                         article.name,
                         style: const TextStyle(
@@ -98,18 +126,21 @@ class ArticleDetailScreen extends StatelessWidget {
 
                       const SizedBox(height: 8),
 
-                      // Precio y cantidad disponible
+                      // Fila con el precio y el stock disponible
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(
-                            formatPrice(article.salePrice),
-                            style: const TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.black,
+                          Flexible(
+                            child: Text(
+                              formatPrice(article.salePrice),
+                              style: const TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.black,
+                              ),
                             ),
                           ),
+                          const SizedBox(width: 8),
                           Container(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 10,
@@ -134,15 +165,17 @@ class ArticleDetailScreen extends StatelessWidget {
                       const Divider(),
                       const SizedBox(height: 8),
 
-                      // Detalle del producto
+                      // Encabezado de la seccion de descripcion del producto
                       const Text(
-                        'Descripción del producto',
+                        'Descripción del Producto',
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
+
                       const SizedBox(height: 6),
+
                       Text(
                         article.description.isNotEmpty
                             ? article.description
@@ -158,7 +191,7 @@ class ArticleDetailScreen extends StatelessWidget {
               ),
             ),
 
-            // Contenedor de botones de compra y carrito
+            // Barra inferior con botones de accion para comprar y agregar el articulo al carrito
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -173,17 +206,19 @@ class ArticleDetailScreen extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  // Boton comprar
+                  // Boton principal para compra inmediata
                   Expanded(
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF5548F5),
                         foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 14,
+                        ),
                       ),
-                      onPressed: () {},
+                      onPressed: _buyNow,
                       child: const Text(
-                        'Comprar ahora',
+                        'Comprar Ahora',
                         style: TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.bold,
@@ -194,11 +229,12 @@ class ArticleDetailScreen extends StatelessWidget {
 
                   const SizedBox(width: 12),
 
-                  // Boton agregar o quitar del carrito
+                  // Boton circular para agregar o quitar el articulo del carrito
                   ValueListenableBuilder<List<Article>>(
                     valueListenable: CartManager.selectedArticles,
-                    builder: (context, _, _) {
-                      final isSelected = CartManager.isSelected(article);
+                    builder: (context, selectedArticles, child) {
+                      final isSelected =
+                      CartManager.isSelected(article);
 
                       return Container(
                         decoration: BoxDecoration(
@@ -208,6 +244,9 @@ class ArticleDetailScreen extends StatelessWidget {
                               : Colors.grey.shade200,
                         ),
                         child: IconButton(
+                          tooltip: isSelected
+                              ? 'Quitar del carrito'
+                              : 'Agregar al carrito',
                           icon: Icon(
                             isSelected
                                 ? Icons.shopping_cart
@@ -216,7 +255,9 @@ class ArticleDetailScreen extends StatelessWidget {
                                 ? Colors.white
                                 : Colors.grey.shade700,
                           ),
-                          onPressed: () => CartManager.toggleProduct(article),
+                          onPressed: () {
+                            CartManager.toggleProduct(article);
+                          },
                         ),
                       );
                     },

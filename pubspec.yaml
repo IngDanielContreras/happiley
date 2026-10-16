@@ -37,6 +37,8 @@ dependencies:
   sqflite: ^2.3.3+1
 
   path: ^1.9.0
+  shared_preferences: ^2.5.6
+  vector_math: ^2.4.3
 
 dev_dependencies:
   flutter_test:
@@ -64,7 +66,6 @@ flutter:
     - lib/assets/images/articles/
     - lib/assets/gifs/welcome_card.gif
     - lib/database/happiley.db
-    - lib/database/persistence.db
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

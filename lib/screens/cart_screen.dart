@@ -3,6 +3,7 @@ import '../models/article.dart';
 import '../services/cart_manager.dart';
 import '../services/app_utils.dart';
 import '../widgets/cart_item_card.dart';
+import '../widgets/loading_dialog.dart';
 
 class CartScreen extends StatefulWidget {
   const CartScreen({super.key});
@@ -12,10 +13,8 @@ class CartScreen extends StatefulWidget {
 }
 
 class _CartScreenState extends State<CartScreen> {
-  // Mapa de cantidades por artículo
   final Map<int, int> quantities = {};
 
-  // Sincronización de cantidades registradas
   void _syncQuantities(List<Article> articles) {
     for (var article in articles) {
       if (!quantities.containsKey(article.id)) {
@@ -24,7 +23,6 @@ class _CartScreenState extends State<CartScreen> {
     }
   }
 
-  // Calculo del precio total acumulado
   double getTotal() {
     double total = 0.0;
     for (var article in CartManager.selectedArticles.value) {
@@ -34,7 +32,6 @@ class _CartScreenState extends State<CartScreen> {
     return total;
   }
 
-  // Incremento de la cantidad
   void incrementQuantity(Article article) {
     setState(() {
       int current = quantities[article.id] ?? 1;
@@ -44,7 +41,6 @@ class _CartScreenState extends State<CartScreen> {
     });
   }
 
-  // Decremento de la cantidad
   void decrementQuantity(Article article) {
     int current = quantities[article.id] ?? 1;
     if (current > 1) {
@@ -56,7 +52,6 @@ class _CartScreenState extends State<CartScreen> {
     }
   }
 
-  // Eliminación del artículo seleccionado
   void removeItem(Article article) {
     setState(() {
       quantities.remove(article.id);
@@ -85,18 +80,16 @@ class _CartScreenState extends State<CartScreen> {
           if (selectedList.isEmpty) {
             return const Center(
               child: Text(
-                'El carrito está vacío',
+                'El carrito esta vacio',
                 style: TextStyle(fontSize: 16),
               ),
             );
           }
 
-          // Sincronización de registros
           _syncQuantities(selectedList);
 
           return Column(
             children: [
-              // Lista de productos en el carrito
               Expanded(
                 child: AnimatedList(
                   key: ValueKey(selectedList.length),
@@ -105,7 +98,6 @@ class _CartScreenState extends State<CartScreen> {
                     if (index >= selectedList.length) return const SizedBox();
                     final article = selectedList[index];
 
-                    // Transición de desvanecido y tamaño
                     return FadeTransition(
                       opacity: CurvedAnimation(
                         parent: animation,
@@ -122,8 +114,6 @@ class _CartScreenState extends State<CartScreen> {
                   },
                 ),
               ),
-
-              // Contenedor del total y botón de compra
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
@@ -138,7 +128,6 @@ class _CartScreenState extends State<CartScreen> {
                 ),
                 child: Column(
                   children: [
-                    // Muestra del total
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -159,10 +148,7 @@ class _CartScreenState extends State<CartScreen> {
                         ),
                       ],
                     ),
-
                     const SizedBox(height: 12),
-
-                    // Procesamiento de compra
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
@@ -171,18 +157,41 @@ class _CartScreenState extends State<CartScreen> {
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 14),
                         ),
-                        onPressed: () {
-                          // Limpieza total del carrito
+                        onPressed: () async {
+                          LoadingDialog.show(
+                            context,
+                            title: 'Procesando compra',
+                            subtitle: 'Validando orden y pago...',
+                            autoDismiss: false,
+                          );
+
+                          await Future.delayed(const Duration(seconds: 2));
+
+                          if (!context.mounted) return;
+                          Navigator.of(context, rootNavigator: true).pop();
+
+                          if (!context.mounted) return;
+
+                          // Diálogo con customIcon (usará la animación de entrada del chulo)
+                          await LoadingDialog.show(
+                            context,
+                            title: '¡Compra Exitosa!',
+                            subtitle: 'Tu pedido ha sido procesado correctamente.',
+                            autoDismiss: true,
+                            duration: const Duration(seconds: 3),
+                            customIcon: const Icon(
+                              Icons.check_circle_rounded,
+                              color: Color(0xFF4CAF50),
+                              size: 64,
+                            ),
+                          );
+
+                          if (!context.mounted) return;
+
                           setState(() {
                             quantities.clear();
                             CartManager.clearCart();
                           });
-
-                          // Notificación de compra exitosa
-                          AppUtils.showSnackBar(
-                            context,
-                            '¡Compra Realizada con Éxito!',
-                          );
                         },
                         child: const Text(
                           'Comprar',
@@ -203,7 +212,6 @@ class _CartScreenState extends State<CartScreen> {
     );
   }
 
-  // Construcción de tarjeta de producto
   Widget _buildCartTile(Article article) {
     final qty = quantities[article.id] ?? 1;
 
