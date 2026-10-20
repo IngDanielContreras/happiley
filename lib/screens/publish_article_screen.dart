@@ -1,0 +1,903 @@
+import 'dart:io';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:sqflite/sqflite.dart';
+import 'package:path/path.dart' as p;
+import 'image_viewer_screen.dart';
+import '../services/app_utils.dart';
+import '../widgets/loading_dialog.dart';
+
+class PublishArticleScreen extends StatefulWidget {
+  final Database? database;
+  final VoidCallback? onBack;
+  final VoidCallback? onArticlePublished;
+
+  const PublishArticleScreen({
+    super.key,
+    this.database,
+    this.onBack,
+    this.onArticlePublished,
+  });
+
+  @override
+  State<PublishArticleScreen> createState() => _PublishArticleScreenState();
+}
+
+class _PublishArticleScreenState extends State<PublishArticleScreen> {
+  final _formKey = GlobalKey<FormState>();
+
+  // Controladores del formulario
+  final _prefixController = TextEditingController(text: 'IAR');
+  final _nameController = TextEditingController();
+  final _descriptionController = TextEditingController();
+  final _salePriceController = TextEditingController();
+  final _stockController = TextEditingController();
+  final _reorderController = TextEditingController();
+  final _supportEndDateController = TextEditingController();
+
+  // Previsualización de precio formateado en tiempo real
+  String _formattedPricePreview = '';
+
+  File? _selectedImageFile;
+  final ImagePicker _picker = ImagePicker();
+
+  @override
+  void dispose() {
+    _prefixController.dispose();
+    _nameController.dispose();
+    _descriptionController.dispose();
+    _salePriceController.dispose();
+    _stockController.dispose();
+    _reorderController.dispose();
+    _supportEndDateController.dispose();
+    super.dispose();
+  }
+
+  // Obtener la instancia de la base de datos de manera segura
+  Future<Database> _getDatabase() async {
+    if (widget.database != null) {
+      return widget.database!;
+    }
+    final databasesPath = await getDatabasesPath();
+    final path = p.join(databasesPath, 'happiley.db');
+    return await openDatabase(path);
+  }
+
+  // Manejo del botón de retorno
+  void _handleBack() {
+    if (widget.onBack != null) {
+      widget.onBack!();
+    } else if (Navigator.canPop(context)) {
+      Navigator.pop(context);
+    }
+  }
+
+  // Actualización del formato visual de precio al escribir
+  void _onPriceChanged(String value) {
+    final cleanValue = value.replaceAll(RegExp(r'[^0-9]'), '');
+    if (cleanValue.isNotEmpty) {
+      final doubleParsed = double.tryParse(cleanValue);
+      if (doubleParsed != null) {
+        setState(() {
+          _formattedPricePreview = AppUtils.formatPrice(doubleParsed);
+        });
+        return;
+      }
+    }
+    setState(() {
+      _formattedPricePreview = '';
+    });
+  }
+
+  // Visualización en detalle de la imagen seleccionada.
+  void _openImageViewer() {
+    if (_selectedImageFile == null) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ImageViewerScreen(
+          imagePath: _selectedImageFile!.path,
+        ),
+      ),
+    );
+  }
+
+  // Selección de imagen
+  Future<void> _pickImage(ImageSource source) async {
+    try {
+      final pickedFile = await _picker.pickImage(source: source);
+
+      if (pickedFile != null && mounted) {
+        setState(() {
+          _selectedImageFile = File(pickedFile.path);
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        _showErrorDialog('Error al seleccionar la imagen: $e');
+      }
+    }
+  }
+
+  // Modal selector de origen de imagen
+  void _showImageSourceDialog() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(20),
+        ),
+      ),
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(20),
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(
+                Icons.photo_library,
+                color: Color(0xFF5346E0),
+              ),
+              title: const Text('Galería de imágenes'),
+              onTap: () {
+                Navigator.pop(context);
+                _pickImage(ImageSource.gallery);
+              },
+            ),
+            ListTile(
+              leading: const Icon(
+                Icons.camera_alt,
+                color: Color(0xFF5346E0),
+              ),
+              title: const Text('Tomar foto con la cámara'),
+              onTap: () {
+                Navigator.pop(context);
+                _pickImage(ImageSource.camera);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Selector de fecha de garantía / soporte
+  Future<void> _selectDate() async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now(),
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2035),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: Color(0xFF5346E0),
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (picked != null && mounted) {
+      final String formattedDate =
+          "${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}";
+
+      setState(() {
+        _supportEndDateController.text = formattedDate;
+      });
+    }
+  }
+
+  // Limpiar campos del formulario
+  void _clearForm() {
+    _formKey.currentState?.reset();
+
+    _prefixController.text = 'IAR';
+    _nameController.clear();
+    _descriptionController.clear();
+    _salePriceController.clear();
+    _stockController.clear();
+    _reorderController.clear();
+    _supportEndDateController.clear();
+
+    FocusScope.of(context).unfocus();
+
+    setState(() {
+      _selectedImageFile = null;
+      _formattedPricePreview = '';
+    });
+  }
+
+  // Muestra del diálogo con animación de error.
+  void _showErrorDialog(String message) {
+    showDialog(
+      context: context,
+      builder: (context) => LoadingDialog(
+        title: 'Error',
+        subtitle: message,
+      ),
+    );
+  }
+
+  // Muestra del diálogo con animación de éxito.
+  void _showSuccessDialog(String message) {
+    showDialog(
+      context: context,
+      builder: (context) => LoadingDialog(
+        title: 'Éxito',
+        subtitle: message,
+      ),
+    );
+  }
+
+  // Guardar en happiley.db y almacenar la imagen
+  Future<void> _publishArticle() async {
+    FocusScope.of(context).unfocus();
+
+    final bool isFormValid =
+        _formKey.currentState?.validate() ?? false;
+
+    if (!isFormValid || _selectedImageFile == null) {
+      _showErrorDialog(
+        'Debe completar todos los campos obligatorios y seleccionar una imagen.',
+      );
+      return;
+    }
+
+    try {
+      final db = await _getDatabase();
+
+      // 1. Obtener consecutivo actual de la base de datos
+      final List<Map<String, Object?>> countQuery = await db.rawQuery(
+        'SELECT COUNT(*) AS total FROM articles',
+      );
+
+      final int totalArticles =
+          Sqflite.firstIntValue(countQuery) ?? 0;
+
+      final int consecutiveNumber = totalArticles + 1;
+
+      if (consecutiveNumber > 999) {
+        if (mounted) {
+          _showErrorDialog(
+            'Se ha alcanzado el límite de 999 artículos. Amplíe la convención de nomenclatura.',
+          );
+        }
+        return;
+      }
+
+      // 2. Construir prefijo e identificador consecutivo
+      String prefix = _prefixController.text.trim().toUpperCase();
+
+      if (prefix.length != 3) {
+        prefix = 'IAR';
+      }
+
+      final String numericId =
+      consecutiveNumber.toString().padLeft(3, '0');
+
+      final String codeName = "$prefix$numericId";
+
+      // 3. Almacenamiento físico de la imagen
+      final Directory appDir =
+      await getApplicationDocumentsDirectory();
+
+      final Directory targetDir = Directory(
+        p.join(
+          appDir.path,
+          'articles_images',
+        ),
+      );
+
+      if (!await targetDir.exists()) {
+        await targetDir.create(recursive: true);
+      }
+
+      final String fileExtension =
+      p.extension(_selectedImageFile!.path).isEmpty
+          ? '.png'
+          : p.extension(_selectedImageFile!.path);
+
+      final String finalFileName = "$codeName$fileExtension";
+
+      final String internalSavedPath =
+      p.join(targetDir.path, finalFileName);
+
+      // Copiar archivo de imagen
+      await _selectedImageFile!.copy(internalSavedPath);
+
+      // Ruta para guardar en SQLite
+      final String relativeImagePath = internalSavedPath;
+
+      // 4. Inserción en happiley.db
+      final String todayDate =
+      DateTime.now().toIso8601String().split('T')[0];
+
+      // Sanitización del precio de venta para almacenar exclusivamente como valor REAL en SQLite
+      final cleanPriceString = _salePriceController.text
+          .trim()
+          .replaceAll(RegExp(r'[^0-9.]'), '');
+
+      final double? numericSalePrice =
+      double.tryParse(cleanPriceString);
+
+      if (numericSalePrice == null) {
+        if (mounted) {
+          _showErrorDialog('Ingresa un precio válido.');
+        }
+        return;
+      }
+
+      await db.insert('articles', {
+        'code': codeName,
+        'name': _nameController.text.trim(),
+        'description': _descriptionController.text.trim(),
+        'purchase_price': 0.0,
+        'sale_price': numericSalePrice,
+        'stock': int.parse(_stockController.text.trim()),
+        'purchase_date': todayDate,
+        'sale_date': null,
+        'units_until_reorder':
+        int.parse(_reorderController.text.trim()),
+        'support_end_date': _supportEndDateController.text.trim(),
+        'image': relativeImagePath,
+      });
+
+      // 5. Mensaje de éxito y reinicio del formulario
+      if (!mounted) return;
+
+      _showSuccessDialog('¡Artículo Publicado Exitosamente!');
+      _clearForm();
+
+      if (widget.onArticlePublished != null) {
+        widget.onArticlePublished!();
+      }
+    } catch (e) {
+      if (mounted) {
+        _showErrorDialog(
+          'Error al registrar el artículo: $e',
+        );
+      }
+    }
+  }
+
+  // Construcción de etiqueta exterior para campos con indicador obligatorio
+  Widget _buildFieldLabel(String labelText, {bool isRequired = false}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6.0),
+      child: Row(
+        children: [
+          Text(
+            labelText,
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Colors.black87,
+            ),
+          ),
+          if (isRequired)
+            const Text(
+              ' *',
+              style: TextStyle(
+                color: Colors.red,
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  // Widget auxiliar para crear secciones encajonadas colapsables
+  Widget _buildSectionCard({
+    required IconData icon,
+    required String title,
+    String? subtitle,
+    required Widget child,
+  }) {
+    return Card(
+      elevation: 0,
+      margin: const EdgeInsets.only(bottom: 16),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: Colors.grey.shade200,
+        ),
+      ),
+      color: Colors.white,
+      child: Theme(
+        data: Theme.of(context).copyWith(
+          dividerColor: Colors.transparent,
+        ),
+        child: ExpansionTile(
+          initiallyExpanded: false,
+          tilePadding: const EdgeInsets.all(16.0),
+          childrenPadding:
+          const EdgeInsets.fromLTRB(16.0, 0.0, 16.0, 16.0),
+          leading: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: const Color(0xFF5346E0).withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(
+              icon,
+              color: const Color(0xFF5346E0),
+            ),
+          ),
+          title: Text(
+            title,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: Colors.black87,
+            ),
+          ),
+          subtitle: subtitle != null
+              ? Text(
+            subtitle,
+            style: const TextStyle(
+              fontSize: 12,
+              color: Colors.grey,
+            ),
+          )
+              : null,
+          children: [
+            child,
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Formato común de las cajas de texto
+  InputDecoration _inputDecoration({
+    required String hint,
+    Widget? suffixIcon,
+  }) {
+    return InputDecoration(
+      hintText: hint,
+      suffixIcon: suffixIcon,
+      counterText: '',
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: 16,
+        vertical: 12,
+      ),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(
+          color: Colors.grey.shade300,
+        ),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(
+          color: Colors.grey.shade300,
+        ),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(
+          color: Color(0xFF5346E0),
+          width: 1.5,
+        ),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(
+          color: Colors.redAccent,
+          width: 1.5,
+        ),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(
+          color: Colors.red,
+          width: 1.5,
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const primaryColor = Color(0xFF5346E0);
+
+    return GestureDetector(
+      onTap: () => FocusScope.of(context).unfocus(),
+      behavior: HitTestBehavior.opaque,
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF6F6FC),
+        appBar: AppBar(
+          elevation: 0,
+          backgroundColor: primaryColor,
+          leading: IconButton(
+            icon: const Icon(
+              Icons.arrow_back,
+              color: Colors.white,
+            ),
+            onPressed: _handleBack,
+          ),
+          title: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: const [
+              Text(
+                'Publicar Nuevo Artículo',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              Text(
+                'Panel de Vendedor',
+                style: TextStyle(
+                  color: Colors.white70,
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ),
+        ),
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.all(16.0),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              children: [
+                // Card 1: Imagen del producto
+                _buildSectionCard(
+                  icon: Icons.image_outlined,
+                  title: 'Imagen del Producto',
+                  subtitle: 'Selecciona una imagen desde tu galería o cámara',
+                  child: Column(
+                    children: [
+                      if (_selectedImageFile != null) ...[
+                        GestureDetector(
+                          onTap: _openImageViewer,
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: Image.file(
+                              _selectedImageFile!,
+                              height: 200,
+                              width: double.infinity,
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                      ],
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: _showImageSourceDialog,
+                          icon: Icon(
+                            _selectedImageFile == null
+                                ? Icons.add_a_photo
+                                : Icons.refresh,
+                            color: Colors.white,
+                          ),
+                          label: Text(
+                            _selectedImageFile == null
+                                ? 'Seleccionar Imagen de la Galería / Cámara'
+                                : 'Reemplazar Imagen',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: primaryColor,
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 14,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(24),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Card 2: Información del producto
+                _buildSectionCard(
+                  icon: Icons.local_offer_outlined,
+                  title: 'Información del Producto',
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildFieldLabel('Prefijo de Código (Opcional)'),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            flex: 2,
+                            child: TextFormField(
+                              controller: _prefixController,
+                              maxLength: 3,
+                              decoration: _inputDecoration(
+                                hint: 'Ej. IAR',
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          const Expanded(
+                            flex: 3,
+                            child: Padding(
+                              padding: EdgeInsets.only(top: 8.0),
+                              child: Text(
+                                'Define el prefijo de 3 letras o usa IAR por defecto.',
+                                style: TextStyle(
+                                  color: Colors.grey,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      _buildFieldLabel('Nombre del Artículo', isRequired: true),
+                      TextFormField(
+                        controller: _nameController,
+                        validator: (value) =>
+                        value == null || value.trim().isEmpty
+                            ? 'Ingresa el nombre del artículo'
+                            : null,
+                        decoration: _inputDecoration(
+                          hint: 'Ej. Teclado Mecánico RGB Switch Blue',
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      _buildFieldLabel(
+                        'Descripción del Artículo',
+                        isRequired: true,
+                      ),
+                      TextFormField(
+                        controller: _descriptionController,
+                        maxLines: 3,
+                        validator: (value) =>
+                        value == null || value.trim().isEmpty
+                            ? 'Ingresa la descripción del artículo'
+                            : null,
+                        decoration: _inputDecoration(
+                          hint:
+                          'Ej. Teclado gamer con retroiluminación RGB, switches azules táctiles y cable mallado de 1.8m.',
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Card 3: Precios e inventario
+                _buildSectionCard(
+                  icon: Icons.monetization_on_outlined,
+                  title: 'Precios e Inventario',
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                _buildFieldLabel(
+                                  'Precio de Venta',
+                                  isRequired: true,
+                                ),
+                                TextFormField(
+                                  controller: _salePriceController,
+                                  keyboardType: TextInputType.number,
+                                  inputFormatters: [
+                                    FilteringTextInputFormatter.digitsOnly,
+                                  ],
+                                  onChanged: _onPriceChanged,
+                                  validator: (val) {
+                                    if (val == null || val.trim().isEmpty) {
+                                      return 'Por favor ingresa el precio';
+                                    }
+                                    final cleanVal =
+                                    val.replaceAll(RegExp(r'[^0-9]'), '');
+                                    if (cleanVal.isEmpty ||
+                                        double.tryParse(cleanVal) == null) {
+                                      return 'Ingresa un precio válido';
+                                    }
+                                    return null;
+                                  },
+                                  decoration: _inputDecoration(
+                                    hint: 'Ej. 250000',
+                                    suffixIcon: const Icon(
+                                      Icons.attach_money,
+                                      color: Colors.grey,
+                                    ),
+                                  ),
+                                ),
+                                if (_formattedPricePreview.isNotEmpty) ...[
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    _formattedPricePreview,
+                                    style: const TextStyle(
+                                      color: Color(0xFF5346E0),
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                _buildFieldLabel(
+                                  'Stock Inicial',
+                                  isRequired: true,
+                                ),
+                                TextFormField(
+                                  controller: _stockController,
+                                  keyboardType: TextInputType.number,
+                                  inputFormatters: [
+                                    FilteringTextInputFormatter.digitsOnly,
+                                  ],
+                                  validator: (val) {
+                                    if (val == null || val.trim().isEmpty) {
+                                      return 'Requerido';
+                                    }
+                                    if (int.tryParse(val.trim()) == null) {
+                                      return 'Inválido';
+                                    }
+                                    return null;
+                                  },
+                                  decoration: _inputDecoration(
+                                    hint: 'Ej. 15',
+                                    suffixIcon: const Icon(
+                                      Icons.inventory_2_outlined,
+                                      color: Colors.grey,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      _buildFieldLabel(
+                        'Punto de reordenación',
+                        isRequired: true,
+                      ),
+                      TextFormField(
+                        controller: _reorderController,
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.digitsOnly,
+                        ],
+                        validator: (val) {
+                          if (val == null || val.trim().isEmpty) {
+                            return 'Requerido';
+                          }
+                          if (int.tryParse(val.trim()) == null) {
+                            return 'Inválido';
+                          }
+                          return null;
+                        },
+                        decoration: _inputDecoration(
+                          hint: 'Ej. 3',
+                          suffixIcon: const Icon(
+                            Icons.notifications_none,
+                            color: Colors.grey,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Card 4: Fechas y garantía
+                _buildSectionCard(
+                  icon: Icons.calendar_today_outlined,
+                  title: 'Fechas y Garantía',
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildFieldLabel(
+                        'Fecha fin de soporte / garantía',
+                        isRequired: true,
+                      ),
+                      TextFormField(
+                        controller: _supportEndDateController,
+                        readOnly: true,
+                        onTap: _selectDate,
+                        validator: (value) =>
+                        value == null || value.trim().isEmpty
+                            ? 'Selecciona una fecha'
+                            : null,
+                        decoration: _inputDecoration(
+                          hint: 'AAAA-MM-DD',
+                          suffixIcon: const Icon(
+                            Icons.calendar_month,
+                            color: Colors.grey,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Botones de acción inferiores
+                Padding(
+                  padding: const EdgeInsets.only(
+                    top: 16.0,
+                    bottom: 16.0,
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: _clearForm,
+                          icon: const Icon(
+                            Icons.delete_outline,
+                            color: primaryColor,
+                          ),
+                          label: const Text(
+                            'Limpiar Formulario',
+                            style: TextStyle(color: primaryColor),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 14,
+                            ),
+                            side: const BorderSide(
+                              color: primaryColor,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(24),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: _publishArticle,
+                          icon: const Icon(
+                            Icons.send,
+                            color: Colors.white,
+                          ),
+                          label: const Text(
+                            'Publicar Artículo',
+                            style: TextStyle(color: Colors.white),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: primaryColor,
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 14,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(24),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 56.0),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}

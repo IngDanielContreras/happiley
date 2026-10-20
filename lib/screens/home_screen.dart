@@ -33,7 +33,6 @@ class HomeScreen extends StatelessWidget {
       canPop: false,
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) return;
-        _showExitAnimation(context);
       },
       child: HomeContent(
         onExitApp: () => _showExitAnimation(context),

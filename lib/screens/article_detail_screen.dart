@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import '../models/article.dart';
 import '../services/cart_manager.dart';
@@ -33,6 +34,51 @@ class ArticleDetailScreen extends StatelessWidget {
     onBuyNow();
   }
 
+  Widget _buildArticleImage(String? imagePath) {
+    if (imagePath == null || imagePath.isEmpty) {
+      return const Center(
+        child: Icon(
+          Icons.image_not_supported,
+          size: 60,
+          color: Colors.grey,
+        ),
+      );
+    }
+
+    final file = File(imagePath);
+    if (imagePath.startsWith('/') || file.existsSync()) {
+      return Image.file(
+        file,
+        width: double.infinity,
+        fit: BoxFit.contain,
+        errorBuilder: (context, error, stackTrace) {
+          return const Center(
+            child: Icon(
+              Icons.image_not_supported,
+              size: 60,
+              color: Colors.grey,
+            ),
+          );
+        },
+      );
+    }
+
+    return Image.asset(
+      imagePath,
+      width: double.infinity,
+      fit: BoxFit.contain,
+      errorBuilder: (context, error, stackTrace) {
+        return const Center(
+          child: Icon(
+            Icons.image_not_supported,
+            size: 60,
+            color: Colors.grey,
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -64,29 +110,8 @@ class ArticleDetailScreen extends StatelessWidget {
                       );
                     },
                     child: ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: article.image != null &&
-                          article.image!.isNotEmpty
-                          ? Image.asset(
-                        article.image!,
-                        fit: BoxFit.contain,
-                        errorBuilder: (context, error, stackTrace) {
-                          return const Center(
-                            child: Icon(
-                              Icons.image_not_supported,
-                              size: 60,
-                              color: Colors.grey,
-                            ),
-                          );
-                        },
-                      )
-                          : const Center(
-                        child: Icon(
-                          Icons.image_not_supported,
-                          size: 60,
-                          color: Colors.grey,
-                        ),
-                      ),
+                      borderRadius: BorderRadius.zero,
+                      child: _buildArticleImage(article.image),
                     ),
                   ),
                 ),

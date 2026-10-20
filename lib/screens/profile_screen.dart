@@ -10,11 +10,13 @@ import '../widgets/custom_app_bar.dart';
 class ProfileScreen extends StatefulWidget {
   final dynamic userCode;
   final VoidCallback? onLogout;
+  final VoidCallback? onPublishArticle;
 
   const ProfileScreen({
     super.key,
     required this.userCode,
     this.onLogout,
+    this.onPublishArticle,
   });
 
   @override
@@ -43,15 +45,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   // Carga de la información del usuario desde la base de datos
   void _loadUserData() {
-    setState(() {
-      _userFuture = _userService.getUserById(widget.userCode);
-    });
+    _userFuture = _userService.getUserById(widget.userCode);
   }
 
   // Carga de nueva foto de perfil
-  void _handleImagePick(User user) {
-
-  }
+  void _handleImagePick(User user) {}
 
   @override
   Widget build(BuildContext context) {
@@ -88,9 +86,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       foregroundColor: Colors.white,
                     ),
                     onPressed: () {
-                      if (widget.onLogout != null) {
-                        widget.onLogout!();
-                      }
+                      setState(() {
+                        _loadUserData();
+                      });
                     },
                     child: const Text('Volver a intentar'),
                   ),
@@ -129,7 +127,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 const Divider(height: 32),
 
                 // Opciones de navegacion por rol
-                RoleOptions(user: user),
+                RoleOptions(
+                  user: user,
+                  onPublishArticle: widget.onPublishArticle,
+                ),
               ],
             ),
           );

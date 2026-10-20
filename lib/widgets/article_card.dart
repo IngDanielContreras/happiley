@@ -1,6 +1,8 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import '../models/article.dart';
 import '../services/cart_manager.dart';
+import '../services/app_utils.dart';
 
 class ArticleCard extends StatelessWidget {
   final Article article;
@@ -14,11 +16,39 @@ class ArticleCard extends StatelessWidget {
     this.onTap,
   });
 
-  String formatPrice(double price) {
-    return '\$${price.toStringAsFixed(0).replaceAllMapped(
-      RegExp(r'(\d)(?=(\d{3})+$)'),
-          (match) => '${match.group(1)}.',
-    )} COP';
+  // Renderizado dinámico de la imagen según su origen local o de assets.
+  Widget _buildArticleImage(String? imagePath) {
+    if (imagePath == null || imagePath.isEmpty) {
+      return const Icon(
+        Icons.image_not_supported,
+        color: Colors.grey,
+      );
+    }
+
+    final file = File(imagePath);
+    if (imagePath.startsWith('/') || file.existsSync()) {
+      return Image.file(
+        file,
+        width: double.infinity,
+        height: double.infinity,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) => const Icon(
+          Icons.broken_image,
+          color: Colors.grey,
+        ),
+      );
+    }
+
+    return Image.asset(
+      imagePath,
+      width: double.infinity,
+      height: double.infinity,
+      fit: BoxFit.cover,
+      errorBuilder: (context, error, stackTrace) => const Icon(
+        Icons.broken_image,
+        color: Colors.grey,
+      ),
+    );
   }
 
   @override
@@ -36,7 +66,7 @@ class ArticleCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Imagen del producto
+              // Imagen del producto adaptativa al espacio disponible
               Expanded(
                 child: Container(
                   width: double.infinity,
@@ -46,33 +76,20 @@ class ArticleCard extends StatelessWidget {
                   ),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(12),
-                    child: Image.asset(
-                      article.image!,
-                      fit: BoxFit.cover,
-                    ),
+                    child: _buildArticleImage(article.image),
                   ),
                 ),
               ),
 
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
 
               // Información general
               Text(
                 article.name,
-                maxLines: 2,
+                maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   fontWeight: FontWeight.bold,
-                  fontSize: 15,
-                ),
-              ),
-
-              const SizedBox(height: 5),
-
-              Text(
-                formatPrice(article.salePrice),
-                style: const TextStyle(
-                  fontWeight: FontWeight.w600,
                   fontSize: 14,
                 ),
               ),
@@ -80,28 +97,42 @@ class ArticleCard extends StatelessWidget {
               const SizedBox(height: 4),
 
               Text(
-                'Stock: ${article.stock}',
-                style: TextStyle(
-                  color: Colors.grey.shade700,
-                  fontSize: 12,
+                AppUtils.formatPrice(article.salePrice),
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
                 ),
               ),
 
-              const SizedBox(height: 8),
+              const SizedBox(height: 2),
+
+              Text(
+                'Stock: ${article.stock}',
+                style: TextStyle(
+                  color: Colors.grey.shade700,
+                  fontSize: 11,
+                ),
+              ),
+
+              const SizedBox(height: 6),
 
               // Botones de acción
               Row(
                 children: [
                   Expanded(
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF5548F5),
-                        foregroundColor: Colors.white,
-                      ),
-                      onPressed: onBuy,
-                      child: const Text(
-                        'Comprar',
-                        style: TextStyle(fontSize: 13),
+                    child: SizedBox(
+                      height: 36,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF5548F5),
+                          foregroundColor: Colors.white,
+                          padding: EdgeInsets.zero,
+                        ),
+                        onPressed: onBuy,
+                        child: const Text(
+                          'Comprar',
+                          style: TextStyle(fontSize: 12),
+                        ),
                       ),
                     ),
                   ),
@@ -113,21 +144,27 @@ class ArticleCard extends StatelessWidget {
                     builder: (context, _, _) {
                       final isSelected = CartManager.isSelected(article);
 
-                      return Container(
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: isSelected
-                              ? const Color(0xFF2D2DA8)
-                              : Colors.grey.shade200,
-                        ),
-                        child: IconButton(
-                          icon: Icon(
-                            isSelected
-                                ? Icons.shopping_cart
-                                : Icons.shopping_cart_outlined,
-                            color: isSelected ? Colors.white : Colors.grey.shade700,
+                      return SizedBox(
+                        width: 36,
+                        height: 36,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: isSelected
+                                ? const Color(0xFF2D2DA8)
+                                : Colors.grey.shade200,
                           ),
-                          onPressed: () => CartManager.toggleProduct(article),
+                          child: IconButton(
+                            padding: EdgeInsets.zero,
+                            iconSize: 20,
+                            icon: Icon(
+                              isSelected
+                                  ? Icons.shopping_cart
+                                  : Icons.shopping_cart_outlined,
+                              color: isSelected ? Colors.white : Colors.grey.shade700,
+                            ),
+                            onPressed: () => CartManager.toggleProduct(article),
+                          ),
                         ),
                       );
                     },

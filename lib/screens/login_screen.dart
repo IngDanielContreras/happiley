@@ -186,8 +186,7 @@ class _LoginScreenState extends State<LoginScreen>
       if (!mounted) return;
 
       final currentDurationMin = lockoutDurationsMinutes[
-      lockoutLevel.clamp(0, lockoutDurationsMinutes.length - 1)];
-
+      lockoutLevel.clamp(0, lockoutDurationsMinutes.length - 1).toInt()];
       await LoadingDialog.show(
         context,
         title: '¡Te Queda Un Solo Intento!',
@@ -207,6 +206,7 @@ class _LoginScreenState extends State<LoginScreen>
 
       final durationMinutes = lockoutDurationsMinutes[
       lockoutLevel.clamp(0, lockoutDurationsMinutes.length - 1)];
+
       final durationSeconds = durationMinutes * 60;
 
       final now = DateTime.now();
@@ -215,8 +215,10 @@ class _LoginScreenState extends State<LoginScreen>
 
       await prefs.setInt(keyLockoutEndTime, lockoutEndTimeMs);
 
-      final nextLevel =
-      (lockoutLevel + 1).clamp(0, lockoutDurationsMinutes.length - 1);
+      final nextLevel = (lockoutLevel + 1)
+          .clamp(0, lockoutDurationsMinutes.length - 1)
+          .toInt();
+
       await prefs.setInt(keyLockoutLevel, nextLevel);
       lockoutLevel = nextLevel;
 
@@ -283,10 +285,11 @@ class _LoginScreenState extends State<LoginScreen>
     }
 
     // Validacion del formato de correo electronico requerido
-    if (!email.contains('@')) {
+    final emailRegex = RegExp(r'^.+@.+\..+$');
+    if (!emailRegex.hasMatch(email)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('El correo debe incluir la arroba, ejemplo: ejemplo@happiley.com.'),
+          content: Text('El correo debe incluir un texto antes y después de la arroba, y un punto con texto antes y después.'),
         ),
       );
       return;
@@ -834,7 +837,7 @@ class _LoginScreenState extends State<LoginScreen>
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFD32F2F).withOpacity(0.95),
+                      color: const Color(0xFFD32F2F).withValues(alpha: 0.95),
                       borderRadius: BorderRadius.circular(20),
                       boxShadow: const [
                         BoxShadow(

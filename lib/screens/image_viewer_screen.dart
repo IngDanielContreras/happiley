@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import '../widgets/custom_app_bar.dart';
 
@@ -19,26 +20,79 @@ class _ImageViewerScreenState extends State<ImageViewerScreen> {
   double _currentScale = 1.0;
   bool _showSlider = false;
 
-  // Ajuste del nivel de zoom
+  // Actualizacion progresiva del zoom manteniendo la fluidez y posicion
   void _updateScale(double newScale) {
+    final double clampedScale = newScale.clamp(1.0, 4.0);
+
+    if (clampedScale == 1.0) {
+      setState(() {
+        _currentScale = 1.0;
+        _transformationController.value = Matrix4.identity();
+      });
+      return;
+    }
+
+    final Matrix4 currentMatrix = _transformationController.value;
+    final double oldScale = currentMatrix.storage[0];
+
+    if (oldScale == 0) return;
+    final double scaleFactor = clampedScale / oldScale;
+
+    final Size size = MediaQuery.of(context).size;
+    final double centerX = size.width / 2;
+    final double centerY = size.height / 2;
+
+    final double currentTx = currentMatrix.storage[12];
+    final double currentTy = currentMatrix.storage[13];
+
+    final double newTx = centerX - scaleFactor * (centerX - currentTx);
+    final double newTy = centerY - scaleFactor * (centerY - currentTy);
+
     setState(() {
-      _currentScale = newScale.clamp(1.0, 4.0);
-      _transformationController.value = Matrix4.diagonal3Values(
-        _currentScale,
-        _currentScale,
-        1.0,
-      );
+      _currentScale = clampedScale;
+      _transformationController.value = Matrix4.identity()
+        ..translate(newTx, newTy)
+        ..scale(clampedScale, clampedScale, 1.0);
     });
   }
 
-  // Aumento gradual del tamaño de la imagen
+  // Aumento gradual de la escala de la imagen
   void _zoomIn() {
     _updateScale(_currentScale + 0.25);
   }
 
-  // Disminucion gradual del tamaño de la imagen
+  // Disminucion gradual de la escala de la imagen
   void _zoomOut() {
     _updateScale(_currentScale - 0.25);
+  }
+
+  // Renderizado dinamico de la imagen segun su origen local o de assets
+  Widget _buildImage(String path) {
+    final file = File(path);
+    if (path.startsWith('/') || file.existsSync()) {
+      return Image.file(
+        file,
+        width: double.infinity,
+        height: double.infinity,
+        fit: BoxFit.contain,
+        errorBuilder: (context, error, stackTrace) => const Icon(
+          Icons.broken_image,
+          color: Colors.black54,
+          size: 64,
+        ),
+      );
+    }
+    return Image.asset(
+      path,
+      width: double.infinity,
+      height: double.infinity,
+      fit: BoxFit.contain,
+      errorBuilder: (context, error, stackTrace) => const Icon(
+        Icons.broken_image,
+        color: Colors.black54,
+        size: 64,
+      ),
+    );
   }
 
   @override
@@ -51,25 +105,41 @@ class _ImageViewerScreenState extends State<ImageViewerScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: CustomAppBar.statusOnly(),
-      backgroundColor: Color(0xFFE3E2E2),
+      backgroundColor: const Color(0xFFE3E2E2),
       body: SafeArea(
         child: Stack(
           children: [
-            // Visor interactivo para manipular el zoom y desplazamiento de la imagen
-            Center(
-              child: InteractiveViewer(
-                transformationController: _transformationController,
-                minScale: 1.0,
-                maxScale: 4.0,
-                onInteractionUpdate: (details) {
-                  setState(() {
-                    _currentScale =
+            // Visor interactivo delimitado para evitar desbordamientos en pantalla
+            Positioned.fill(
+              child: ClipRect(
+                child: InteractiveViewer(
+                  transformationController: _transformationController,
+                  minScale: 1.0,
+                  maxScale: 4.0,
+                  panEnabled: _currentScale > 1.0,
+                  scaleEnabled: true,
+                  boundaryMargin: EdgeInsets.zero,
+                  clipBehavior: Clip.hardEdge,
+                  onInteractionUpdate: (details) {
+                    final double scale =
                     _transformationController.value.storage[0];
-                  });
-                },
-                child: Image.asset(
-                  widget.imagePath,
-                  fit: BoxFit.contain,
+                    setState(() {
+                      _currentScale = scale;
+                    });
+                  },
+                  onInteractionEnd: (details) {
+                    final double scale =
+                    _transformationController.value.storage[0];
+                    if (scale <= 1.0) {
+                      setState(() {
+                        _currentScale = 1.0;
+                        _transformationController.value = Matrix4.identity();
+                      });
+                    }
+                  },
+                  child: Center(
+                    child: _buildImage(widget.imagePath),
+                  ),
                 ),
               ),
             ),
@@ -130,7 +200,7 @@ class _ImageViewerScreenState extends State<ImageViewerScreen> {
             // Barra desplegable inferior con deslizador para regular el nivel de zoom
             if (_showSlider)
               Positioned(
-                bottom: 20,
+                bottom: 28,
                 left: 20,
                 right: 20,
                 child: Container(
@@ -139,7 +209,7 @@ class _ImageViewerScreenState extends State<ImageViewerScreen> {
                     vertical: 8,
                   ),
                   decoration: BoxDecoration(
-                    color: Color(0xFFFFFFFF),
+                    color: const Color(0xFFFFFFFF),
                     borderRadius: BorderRadius.circular(30),
                     border: Border.all(
                       color: Colors.white24,
@@ -158,7 +228,7 @@ class _ImageViewerScreenState extends State<ImageViewerScreen> {
                           min: 1.0,
                           max: 4.0,
                           activeColor: const Color(0xFF5548F5),
-                          inactiveColor: Color(0xFFBBBBC1),
+                          inactiveColor: const Color(0xFFBBBBC1),
                           onChanged: (value) {
                             _updateScale(value);
                           },

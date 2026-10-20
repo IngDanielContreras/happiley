@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:sqflite/sqflite.dart';
 import 'explore_screen.dart';
 import 'cart_screen.dart';
 import 'profile_screen.dart';
 import 'login_screen.dart';
 import 'article_detail_screen.dart';
+import 'publish_article_screen.dart';
 import '../models/article.dart';
 import '../widgets/bottom_navigation.dart';
 import 'home_screen.dart';
@@ -11,9 +13,11 @@ import '../services/session_manager.dart';
 
 class MainScreen extends StatefulWidget {
   final int initialIndex;
+  final Database? database;
 
   const MainScreen({
     super.key,
+    this.database,
     this.initialIndex = 0,
   });
 
@@ -24,6 +28,7 @@ class MainScreen extends StatefulWidget {
 class MainScreenState extends State<MainScreen> {
   late int currentIndex;
   Article? selectedArticle;
+  int exploreKeyCounter = 0;
 
   @override
   void initState() {
@@ -80,6 +85,13 @@ class MainScreenState extends State<MainScreen> {
     });
   }
 
+  // Incremento del contador para forzar la recarga de explore screen.
+  void refreshExploreScreen() {
+    setState(() {
+      exploreKeyCounter++;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     // Alternancia dinamica entre la interfaz de exploracion y los detalles del carrito
@@ -91,7 +103,7 @@ class MainScreenState extends State<MainScreen> {
       onBuyNow: buyNowAndGoToCart,
     )
         : ExploreScreen(
-      key: const ValueKey('explore_screen'),
+      key: ValueKey('explore_screen_$exploreKeyCounter'),
       onCartPressed: () {
         changeTab(2);
       },
@@ -107,6 +119,9 @@ class MainScreenState extends State<MainScreen> {
           key: ValueKey('user_profile_$userCode'),
           userCode: userCode,
           onLogout: onLogout,
+          onPublishArticle: () {
+            changeTab(4);
+          },
         )
             : LoginScreen(
           key: const Key('user_login_screen'),
@@ -127,14 +142,23 @@ class MainScreenState extends State<MainScreen> {
                 key: ValueKey('cart_screen'),
               ),
               profileOrLoginWidget,
+              PublishArticleScreen(
+                database: widget.database,
+                onBack: () {
+                  changeTab(1);
+                },
+                onArticlePublished: refreshExploreScreen,
+              ),
             ],
           ),
-          bottomNavigationBar: BottomNavigation(
+          bottomNavigationBar: currentIndex < 4
+              ? BottomNavigation(
             selectedIndex: currentIndex,
             onIndexChanged: (index) {
               changeTab(index);
             },
-          ),
+          )
+              : null,
         );
       },
     );
