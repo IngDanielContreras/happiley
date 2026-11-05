@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/article.dart';
 import '../services/cart_manager.dart';
 import '../widgets/custom_app_bar.dart';
+import '../widgets/article_description_viewer.dart';
 import 'image_viewer_screen.dart';
 
 class ArticleDetailScreen extends StatelessWidget {
@@ -201,14 +202,8 @@ class ArticleDetailScreen extends StatelessWidget {
 
                       const SizedBox(height: 6),
 
-                      Text(
-                        article.description.isNotEmpty
-                            ? article.description
-                            : 'Sin descripción disponible.',
-                        style: TextStyle(
-                          color: Colors.grey.shade700,
-                          fontSize: 14,
-                        ),
+                      ArticleDescriptionViewer(
+                        description: article.description,
                       ),
                     ],
                   ),

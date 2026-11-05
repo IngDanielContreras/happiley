@@ -1,6 +1,8 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_quill/flutter_quill.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
@@ -8,6 +10,7 @@ import 'package:path/path.dart' as p;
 import 'image_viewer_screen.dart';
 import '../services/app_utils.dart';
 import '../widgets/loading_dialog.dart';
+import '../widgets/rich_text_toolbar.dart';
 
 class PublishArticleScreen extends StatefulWidget {
   final Database? database;
@@ -28,29 +31,37 @@ class PublishArticleScreen extends StatefulWidget {
 class _PublishArticleScreenState extends State<PublishArticleScreen> {
   final _formKey = GlobalKey<FormState>();
 
-  // Key de control para forzar la minimización y reinicio visual de los ExpansionTiles
+  // Key de control para forzar la minimizacion y reinicio visual de los ExpansionTiles
   Key _expansionTilesKey = UniqueKey();
 
   // Controladores del formulario
   final _prefixController = TextEditingController(text: 'IAR');
   final _nameController = TextEditingController();
-  final _descriptionController = TextEditingController();
   final _salePriceController = TextEditingController();
   final _stockController = TextEditingController();
   final _reorderController = TextEditingController();
   final _supportEndDateController = TextEditingController();
 
-  // Previsualización de precio formateado en tiempo real
+  // Controlador de texto enriquecido para la descripcion del articulo
+  late QuillController _quillController;
+
+  // Previsualizacion de precio formateado en tiempo real
   String _formattedPricePreview = '';
 
   File? _selectedImageFile;
   final ImagePicker _picker = ImagePicker();
 
   @override
+  void initState() {
+    super.initState();
+    _quillController = QuillController.basic();
+  }
+
+  @override
   void dispose() {
     _prefixController.dispose();
     _nameController.dispose();
-    _descriptionController.dispose();
+    _quillController.dispose();
     _salePriceController.dispose();
     _stockController.dispose();
     _reorderController.dispose();
@@ -58,7 +69,7 @@ class _PublishArticleScreenState extends State<PublishArticleScreen> {
     super.dispose();
   }
 
-  // Obtención de la instancia de la base de datos de forma segura
+  // Obtencion de la instancia de la base de datos de forma segura
   Future<Database> _getDatabase() async {
     if (widget.database != null) {
       return widget.database!;
@@ -70,7 +81,7 @@ class _PublishArticleScreenState extends State<PublishArticleScreen> {
     return await openDatabase(path);
   }
 
-  // Gestión del botón de retorno
+  // Gestion del boton de retorno
   void _handleBack() {
     if (widget.onBack != null) {
       widget.onBack!();
@@ -79,7 +90,7 @@ class _PublishArticleScreenState extends State<PublishArticleScreen> {
     }
   }
 
-  // Actualización del formato visual de precio al escribir
+  // Actualizacion del formato visual de precio al escribir
   void _onPriceChanged(String value) {
     final cleanValue = value.replaceAll(RegExp(r'[^0-9]'), '');
 
@@ -99,21 +110,20 @@ class _PublishArticleScreenState extends State<PublishArticleScreen> {
     });
   }
 
-  // Visualización en detalle de la imagen seleccionada
+  // Visualizacion en detalle de la imagen seleccionada
   void _openImageViewer() {
     if (_selectedImageFile == null) return;
 
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => ImageViewerScreen(
-          imagePath: _selectedImageFile!.path,
-        ),
+        builder: (context) =>
+            ImageViewerScreen(imagePath: _selectedImageFile!.path),
       ),
     );
   }
 
-  // Selección de la imagen del artículo
+  // Seleccion de la imagen del articulo
   Future<void> _pickImage(ImageSource source) async {
     try {
       final pickedFile = await _picker.pickImage(source: source);
@@ -146,9 +156,7 @@ class _PublishArticleScreenState extends State<PublishArticleScreen> {
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(20),
-        ),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (context) => Container(
         padding: const EdgeInsets.all(20),
@@ -166,10 +174,7 @@ class _PublishArticleScreenState extends State<PublishArticleScreen> {
               },
             ),
             ListTile(
-              leading: const Icon(
-                Icons.camera_alt,
-                color: Color(0xFF5346E0),
-              ),
+              leading: const Icon(Icons.camera_alt, color: Color(0xFF5346E0)),
               title: const Text('Tomar foto con la cámara'),
               onTap: () {
                 Navigator.pop(context);
@@ -182,7 +187,7 @@ class _PublishArticleScreenState extends State<PublishArticleScreen> {
     );
   }
 
-  // Selector de la fecha de garantía o soporte
+  // Selector de la fecha de garantia o soporte
   Future<void> _selectDate() async {
     final DateTime? picked = await showDatePicker(
       context: context,
@@ -192,9 +197,7 @@ class _PublishArticleScreenState extends State<PublishArticleScreen> {
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.light(
-              primary: Color(0xFF5346E0),
-            ),
+            colorScheme: const ColorScheme.light(primary: Color(0xFF5346E0)),
           ),
           child: child!,
         );
@@ -217,7 +220,7 @@ class _PublishArticleScreenState extends State<PublishArticleScreen> {
 
     _prefixController.text = 'IAR';
     _nameController.clear();
-    _descriptionController.clear();
+    _quillController.clear();
     _salePriceController.clear();
     _stockController.clear();
     _reorderController.clear();
@@ -232,18 +235,22 @@ class _PublishArticleScreenState extends State<PublishArticleScreen> {
     });
   }
 
-  // Guardado en happiley.db y almacenamiento de la imagen
+  // Guardado en happiley.db y almacenamiento de la descripcion con texto enriquecido
   Future<void> _publishArticle() async {
     FocusScope.of(context).unfocus();
 
     final bool isFormValid = _formKey.currentState?.validate() ?? false;
+    final String plainTextDescription = _quillController.document
+        .toPlainText()
+        .trim();
 
-    if (!isFormValid || _selectedImageFile == null) {
+    if (!isFormValid ||
+        _selectedImageFile == null ||
+        plainTextDescription.isEmpty) {
       await LoadingDialog.show(
         context,
         title: '¡Artículo No Publicado!',
-        subtitle:
-        'Debe completar todos los campos obligatorios y seleccionar una imagen.',
+        subtitle: 'Debe completar todos los campos obligatorios, ingresar la descripción y seleccionar una imagen.',
         autoDismiss: true,
         duration: const Duration(seconds: 5),
         customIcon: const Icon(
@@ -276,7 +283,7 @@ class _PublishArticleScreenState extends State<PublishArticleScreen> {
     try {
       final db = await _getDatabase();
 
-      // Obtención del consecutivo actual de la base de datos
+      // Obtencion del consecutivo actual de la base de datos
       final List<Map<String, Object?>> countQuery = await db.rawQuery(
         'SELECT COUNT(*) AS total FROM articles',
       );
@@ -289,8 +296,7 @@ class _PublishArticleScreenState extends State<PublishArticleScreen> {
         await LoadingDialog.show(
           context,
           title: '¡Artículo No Publicado!',
-          subtitle:
-          'Error al registrar el artículo: Se ha alcanzado el límite de novecientos noventa y nueve artículos. Amplíe la convención de nomenclatura.',
+          subtitle: 'Error al registrar el artículo: Se ha alcanzado el límite de novecientos noventa y nueve artículos. Amplíe la convención de nomenclatura.',
           autoDismiss: true,
           duration: const Duration(seconds: 5),
           customIcon: const Icon(
@@ -302,7 +308,7 @@ class _PublishArticleScreenState extends State<PublishArticleScreen> {
         return;
       }
 
-      // Construcción del prefijo e identificador consecutivo
+      // Construccion del prefijo e identificador consecutivo
       String prefix = _prefixController.text.trim().toUpperCase();
 
       if (prefix.length != 3) {
@@ -313,22 +319,18 @@ class _PublishArticleScreenState extends State<PublishArticleScreen> {
 
       final String codeName = "$prefix$numericId";
 
-      // Almacenamiento físico de la imagen
+      // Almacenamiento fisico de la imagen
       final Directory appDir = await getApplicationDocumentsDirectory();
 
       final Directory targetDir = Directory(
-        p.join(
-          appDir.path,
-          'articles_images',
-        ),
+        p.join(appDir.path, 'articles_images'),
       );
 
       if (!await targetDir.exists()) {
         await targetDir.create(recursive: true);
       }
 
-      final String fileExtension =
-      p.extension(_selectedImageFile!.path).isEmpty
+      final String fileExtension = p.extension(_selectedImageFile!.path).isEmpty
           ? '.png'
           : p.extension(_selectedImageFile!.path);
 
@@ -342,13 +344,14 @@ class _PublishArticleScreenState extends State<PublishArticleScreen> {
       // Ruta para guardar en la base de datos
       final String relativeImagePath = internalSavedPath;
 
-      // Inserción en la base de datos de la aplicación
+      // Insercion en la base de datos de la aplicacion
       final String todayDate = DateTime.now().toIso8601String().split('T')[0];
 
-      // Sanitización del precio de venta para almacenar exclusivamente como valor numérico real
-      final cleanPriceString = _salePriceController.text
-          .trim()
-          .replaceAll(RegExp(r'[^0-9.]'), '');
+      // Sanitizacion del precio de venta para almacenar exclusivamente como valor numerico real
+      final cleanPriceString = _salePriceController.text.trim().replaceAll(
+        RegExp(r'[^0-9.]'),
+        '',
+      );
 
       final double? numericSalePrice = double.tryParse(cleanPriceString);
 
@@ -356,8 +359,7 @@ class _PublishArticleScreenState extends State<PublishArticleScreen> {
         await LoadingDialog.show(
           context,
           title: '¡Artículo No Publicado!',
-          subtitle:
-          'Error al registrar el artículo: Ingresa un precio válido.',
+          subtitle: 'Error al registrar el artículo: Ingresa un precio válido.',
           autoDismiss: true,
           duration: const Duration(seconds: 5),
           customIcon: const Icon(
@@ -369,10 +371,15 @@ class _PublishArticleScreenState extends State<PublishArticleScreen> {
         return;
       }
 
+      // Serializacion del documento de texto enriquecido a JSON Delta
+      final String richTextJson = jsonEncode(
+        _quillController.document.toDelta().toJson(),
+      );
+
       await db.insert('articles', {
         'code': codeName,
         'name': _nameController.text.trim(),
-        'description': _descriptionController.text.trim(),
+        'description': richTextJson,
         'purchase_price': 0.0,
         'sale_price': numericSalePrice,
         'stock': int.parse(_stockController.text.trim()),
@@ -383,7 +390,7 @@ class _PublishArticleScreenState extends State<PublishArticleScreen> {
         'image': relativeImagePath,
       });
 
-      // Confirmación de éxito y reinicio del formulario
+      // Confirmacion de exito y reinicio del formulario
       if (!mounted) return;
 
       await LoadingDialog.show(
@@ -405,6 +412,8 @@ class _PublishArticleScreenState extends State<PublishArticleScreen> {
 
       if (widget.onArticlePublished != null) {
         widget.onArticlePublished!();
+      } else {
+        _handleBack();
       }
     } catch (e) {
       if (!mounted) return;
@@ -424,7 +433,7 @@ class _PublishArticleScreenState extends State<PublishArticleScreen> {
     }
   }
 
-  // Construcción de la etiqueta exterior para campos con indicador obligatorio
+  // Construccion de la etiqueta exterior para campos con indicador obligatorio
   Widget _buildFieldLabel(String labelText, {bool isRequired = false}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 6.0),
@@ -464,15 +473,11 @@ class _PublishArticleScreenState extends State<PublishArticleScreen> {
       margin: const EdgeInsets.only(bottom: 16),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: BorderSide(
-          color: Colors.grey.shade200,
-        ),
+        side: BorderSide(color: Colors.grey.shade200),
       ),
       color: Colors.white,
       child: Theme(
-        data: Theme.of(context).copyWith(
-          dividerColor: Colors.transparent,
-        ),
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
         child: ExpansionTile(
           initiallyExpanded: false,
           tilePadding: const EdgeInsets.all(16.0),
@@ -483,10 +488,7 @@ class _PublishArticleScreenState extends State<PublishArticleScreen> {
               color: const Color(0xFF5346E0).withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Icon(
-              icon,
-              color: const Color(0xFF5346E0),
-            ),
+            child: Icon(icon, color: const Color(0xFF5346E0)),
           ),
           title: Text(
             title,
@@ -498,66 +500,42 @@ class _PublishArticleScreenState extends State<PublishArticleScreen> {
           ),
           subtitle: subtitle != null
               ? Text(
-            subtitle,
-            style: const TextStyle(
-              fontSize: 12,
-              color: Colors.grey,
-            ),
-          )
+                  subtitle,
+                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                )
               : null,
-          children: [
-            child,
-          ],
+          children: [child],
         ),
       ),
     );
   }
 
-  // Estructura común para el diseño de las cajas de texto
-  InputDecoration _inputDecoration({
-    required String hint,
-    Widget? suffixIcon,
-  }) {
+  // Estructura comun para el diseño de las cajas de texto
+  InputDecoration _inputDecoration({required String hint, Widget? suffixIcon}) {
     return InputDecoration(
       hintText: hint,
       suffixIcon: suffixIcon,
       counterText: '',
-      contentPadding: const EdgeInsets.symmetric(
-        horizontal: 16,
-        vertical: 12,
-      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(
-          color: Colors.grey.shade300,
-        ),
+        borderSide: BorderSide(color: Colors.grey.shade300),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(
-          color: Colors.grey.shade300,
-        ),
+        borderSide: BorderSide(color: Colors.grey.shade300),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(
-          color: Color(0xFF5346E0),
-          width: 1.5,
-        ),
+        borderSide: const BorderSide(color: Color(0xFF5346E0), width: 1.5),
       ),
       errorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(
-          color: Colors.redAccent,
-          width: 1.5,
-        ),
+        borderSide: const BorderSide(color: Colors.redAccent, width: 1.5),
       ),
       focusedErrorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(
-          color: Colors.red,
-          width: 1.5,
-        ),
+        borderSide: const BorderSide(color: Colors.red, width: 1.5),
       ),
     );
   }
@@ -601,10 +579,7 @@ class _PublishArticleScreenState extends State<PublishArticleScreen> {
               ),
               Text(
                 'Panel de Vendedor',
-                style: TextStyle(
-                  color: Colors.white70,
-                  fontSize: 12,
-                ),
+                style: TextStyle(color: Colors.white70, fontSize: 12),
               ),
             ],
           ),
@@ -660,9 +635,7 @@ class _PublishArticleScreenState extends State<PublishArticleScreen> {
                             ),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: primaryColor,
-                              padding: const EdgeInsets.symmetric(
-                                vertical: 14,
-                              ),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(24),
                               ),
@@ -689,9 +662,7 @@ class _PublishArticleScreenState extends State<PublishArticleScreen> {
                               child: TextFormField(
                                 controller: _prefixController,
                                 maxLength: 3,
-                                decoration: _inputDecoration(
-                                  hint: 'Ej. IAR',
-                                ),
+                                decoration: _inputDecoration(hint: 'Ej. IAR'),
                               ),
                             ),
                             const SizedBox(width: 12),
@@ -718,7 +689,7 @@ class _PublishArticleScreenState extends State<PublishArticleScreen> {
                         TextFormField(
                           controller: _nameController,
                           validator: (value) =>
-                          value == null || value.trim().isEmpty
+                              value == null || value.trim().isEmpty
                               ? 'Ingresa el nombre del artículo'
                               : null,
                           decoration: _inputDecoration(
@@ -730,16 +701,27 @@ class _PublishArticleScreenState extends State<PublishArticleScreen> {
                           'Descripción del Artículo',
                           isRequired: true,
                         ),
-                        TextFormField(
-                          controller: _descriptionController,
-                          maxLines: 3,
-                          validator: (value) =>
-                          value == null || value.trim().isEmpty
-                              ? 'Ingresa la descripción del artículo'
-                              : null,
-                          decoration: _inputDecoration(
-                            hint:
-                            'Ej. Teclado gamer con retroiluminación RGB, switches azules táctiles y cable mallado de un metro con ocho.',
+                        // Editor de texto enriquecido con cinta de opciones de formato
+                        Container(
+                          decoration: BoxDecoration(
+                            border: Border.all(color: Colors.grey.shade300),
+                            borderRadius: BorderRadius.circular(12),
+                            color: Colors.white,
+                          ),
+                          child: Column(
+                            children: [
+                              RichTextToolbar(controller: _quillController),
+                              Container(
+                                height: 160,
+                                padding: const EdgeInsets.all(12),
+                                child: QuillEditor.basic(
+                                  controller: _quillController,
+                                  config: const QuillEditorConfig(
+                                    placeholder: 'Ej. Teclado gamer con retroiluminación RGB, switches azules táctiles y cable mallado de un metro con ocho.',
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
@@ -776,8 +758,10 @@ class _PublishArticleScreenState extends State<PublishArticleScreen> {
                                         return 'Por favor ingresa el precio';
                                       }
 
-                                      final cleanVal =
-                                      val.replaceAll(RegExp(r'[^0-9]'), '');
+                                      final cleanVal = val.replaceAll(
+                                        RegExp(r'[^0-9]'),
+                                        '',
+                                      );
 
                                       if (cleanVal.isEmpty ||
                                           double.tryParse(cleanVal) == null) {
@@ -897,7 +881,7 @@ class _PublishArticleScreenState extends State<PublishArticleScreen> {
                           readOnly: true,
                           onTap: _selectDate,
                           validator: (value) =>
-                          value == null || value.trim().isEmpty
+                              value == null || value.trim().isEmpty
                               ? 'Selecciona una fecha'
                               : null,
                           decoration: _inputDecoration(
@@ -914,10 +898,7 @@ class _PublishArticleScreenState extends State<PublishArticleScreen> {
 
                   // Botones de acción inferiores
                   Padding(
-                    padding: const EdgeInsets.only(
-                      top: 16.0,
-                      bottom: 28.0,
-                    ),
+                    padding: const EdgeInsets.only(top: 16.0, bottom: 28.0),
                     child: Row(
                       children: [
                         Expanded(
@@ -932,12 +913,8 @@ class _PublishArticleScreenState extends State<PublishArticleScreen> {
                               style: TextStyle(color: primaryColor),
                             ),
                             style: OutlinedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(
-                                vertical: 14,
-                              ),
-                              side: const BorderSide(
-                                color: primaryColor,
-                              ),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              side: const BorderSide(color: primaryColor),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(24),
                               ),
@@ -948,19 +925,14 @@ class _PublishArticleScreenState extends State<PublishArticleScreen> {
                         Expanded(
                           child: ElevatedButton.icon(
                             onPressed: _publishArticle,
-                            icon: const Icon(
-                              Icons.send,
-                              color: Colors.white,
-                            ),
+                            icon: const Icon(Icons.send, color: Colors.white),
                             label: const Text(
                               'Publicar Artículo',
                               style: TextStyle(color: Colors.white),
                             ),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: primaryColor,
-                              padding: const EdgeInsets.symmetric(
-                                vertical: 14,
-                              ),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(24),
                               ),
