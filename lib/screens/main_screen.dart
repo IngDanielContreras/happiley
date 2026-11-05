@@ -85,10 +85,12 @@ class MainScreenState extends State<MainScreen> {
     });
   }
 
-  // Incremento del contador para forzar la recarga de explore screen.
+  // Incremento del contador para forzar la recarga de explore screen y redireccion a ExploreScreen
   void refreshExploreScreen() {
     setState(() {
       exploreKeyCounter++;
+      currentIndex = 1;
+      selectedArticle = null;
     });
   }
 

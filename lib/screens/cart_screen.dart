@@ -4,6 +4,7 @@ import '../services/cart_manager.dart';
 import '../services/app_utils.dart';
 import '../widgets/cart_item_card.dart';
 import '../widgets/loading_dialog.dart';
+import '../widgets/alert_message.dart';
 
 class CartScreen extends StatefulWidget {
   const CartScreen({super.key});
@@ -56,6 +57,52 @@ class _CartScreenState extends State<CartScreen> {
     setState(() {
       quantities.remove(article.id);
       CartManager.toggleProduct(article);
+    });
+  }
+
+  Future<void> _processPurchase() async {
+    LoadingDialog.show(
+      context,
+      title: 'Procesando compra',
+      subtitle: 'Validando orden y pago...',
+      autoDismiss: false,
+      customIcon: const SizedBox(
+        width: 40,
+        height: 40,
+        child: CircularProgressIndicator(
+          valueColor: AlwaysStoppedAnimation<Color>(
+            Color(0xFF5548F5),
+          ),
+          strokeWidth: 3.5,
+        ),
+      ),
+    );
+
+    await Future.delayed(const Duration(seconds: 2));
+
+    if (!context.mounted) return;
+    Navigator.of(context, rootNavigator: true).pop();
+
+    if (!context.mounted) return;
+
+    await LoadingDialog.show(
+      context,
+      title: '¡Compra Exitosa!',
+      subtitle: 'Tu pedido ha sido procesado correctamente.',
+      autoDismiss: true,
+      duration: const Duration(seconds: 3),
+      customIcon: const Icon(
+        Icons.check_circle_rounded,
+        color: Color(0xFF4CAF50),
+        size: 64,
+      ),
+    );
+
+    if (!context.mounted) return;
+
+    setState(() {
+      quantities.clear();
+      CartManager.clearCart();
     });
   }
 
@@ -157,41 +204,16 @@ class _CartScreenState extends State<CartScreen> {
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 14),
                         ),
-                        onPressed: () async {
-                          LoadingDialog.show(
-                            context,
-                            title: 'Procesando compra',
-                            subtitle: 'Validando orden y pago...',
-                            autoDismiss: false,
+                        onPressed: () {
+                          AlertMessage.show(
+                            context: context,
+                            title: 'Confirmar Compra',
+                            message: '¿Desea realizar la compra?',
+                            confirmText: 'Sí',
+                            cancelText: 'No',
+                            isConfirmDefault: false,
+                            onConfirm: _processPurchase,
                           );
-
-                          await Future.delayed(const Duration(seconds: 2));
-
-                          if (!context.mounted) return;
-                          Navigator.of(context, rootNavigator: true).pop();
-
-                          if (!context.mounted) return;
-
-                          // Diálogo con customIcon (usará la animación de entrada del chulo)
-                          await LoadingDialog.show(
-                            context,
-                            title: '¡Compra Exitosa!',
-                            subtitle: 'Tu pedido ha sido procesado correctamente.',
-                            autoDismiss: true,
-                            duration: const Duration(seconds: 3),
-                            customIcon: const Icon(
-                              Icons.check_circle_rounded,
-                              color: Color(0xFF4CAF50),
-                              size: 64,
-                            ),
-                          );
-
-                          if (!context.mounted) return;
-
-                          setState(() {
-                            quantities.clear();
-                            CartManager.clearCart();
-                          });
                         },
                         child: const Text(
                           'Comprar',

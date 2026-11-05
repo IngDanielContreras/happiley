@@ -282,6 +282,7 @@ class _PublishArticleScreenState extends State<PublishArticleScreen> {
       );
 
       final int totalArticles = Sqflite.firstIntValue(countQuery) ?? 0;
+
       final int consecutiveNumber = totalArticles + 1;
 
       if (consecutiveNumber > 999) {
@@ -309,6 +310,7 @@ class _PublishArticleScreenState extends State<PublishArticleScreen> {
       }
 
       final String numericId = consecutiveNumber.toString().padLeft(3, '0');
+
       final String codeName = "$prefix$numericId";
 
       // Almacenamiento físico de la imagen
@@ -331,6 +333,7 @@ class _PublishArticleScreenState extends State<PublishArticleScreen> {
           : p.extension(_selectedImageFile!.path);
 
       final String finalFileName = "$codeName$fileExtension";
+
       final String internalSavedPath = p.join(targetDir.path, finalFileName);
 
       // Copiado de archivo de imagen
@@ -402,8 +405,6 @@ class _PublishArticleScreenState extends State<PublishArticleScreen> {
 
       if (widget.onArticlePublished != null) {
         widget.onArticlePublished!();
-      } else {
-        _handleBack();
       }
     } catch (e) {
       if (!mounted) return;

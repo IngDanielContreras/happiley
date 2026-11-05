@@ -1,10 +1,12 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+
 import '../models/article.dart';
 import '../screens/article_detail_screen.dart';
 import '../services/app_utils.dart';
 import 'alert_message.dart';
 
-// Tarjeta de entrada del articulo de compra
 class CartItemCard extends StatelessWidget {
   final Article article;
   final int quantity;
@@ -21,17 +23,36 @@ class CartItemCard extends StatelessWidget {
     required this.onRemove,
   });
 
+  Widget _buildArticleImage(String? imagePath) {
+    if (imagePath == null || imagePath.trim().isEmpty) {
+      return const Center(
+        child: Icon(Icons.image_not_supported, size: 30, color: Colors.grey),
+      );
+    }
+
+    final file = File(imagePath.trim());
+
+    return Image.file(
+      file,
+      fit: BoxFit.cover,
+      width: double.infinity,
+      height: double.infinity,
+      errorBuilder: (context, error, stackTrace) {
+        return const Center(
+          child: Icon(Icons.broken_image, size: 30, color: Colors.grey),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
-        // Navegacion a la interfaz de  detalle del producto al tocar la entrada
         onTap: () {
           Navigator.push(
             context,
@@ -48,7 +69,6 @@ class CartItemCard extends StatelessWidget {
           padding: const EdgeInsets.all(10),
           child: Row(
             children: [
-              // Imagen del articulo
               Container(
                 width: 60,
                 height: 60,
@@ -58,16 +78,10 @@ class CartItemCard extends StatelessWidget {
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(8),
-                  child: Image.asset(
-                    article.image!,
-                    fit: BoxFit.cover,
-                  ),
+                  child: _buildArticleImage(article.image),
                 ),
               ),
-
               const SizedBox(width: 12),
-
-              // Informacion y controles de cantidad
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -91,8 +105,6 @@ class CartItemCard extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 6),
-
-                    // Botones para aumentar y disminuir unidades
                     Row(
                       children: [
                         Container(
@@ -136,15 +148,9 @@ class CartItemCard extends StatelessWidget {
                   ],
                 ),
               ),
-
-              // Icono papelera para eliminar entrada
               IconButton(
-                icon: const Icon(
-                  Icons.delete_outline,
-                  color: Colors.redAccent,
-                ),
+                icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
                 onPressed: () {
-                  // Alerta de eliminación de artículo
                   AlertMessage.show(
                     context: context,
                     title: 'Eliminar Artículo',
