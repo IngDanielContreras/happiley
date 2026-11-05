@@ -11,6 +11,7 @@ import 'image_viewer_screen.dart';
 import '../services/app_utils.dart';
 import '../widgets/loading_dialog.dart';
 import '../widgets/rich_text_toolbar.dart';
+import '../widgets/alert_message.dart';
 
 class PublishArticleScreen extends StatefulWidget {
   final Database? database;
@@ -31,7 +32,6 @@ class PublishArticleScreen extends StatefulWidget {
 class _PublishArticleScreenState extends State<PublishArticleScreen> {
   final _formKey = GlobalKey<FormState>();
 
-  // Key de control para forzar la minimizacion y reinicio visual de los ExpansionTiles
   Key _expansionTilesKey = UniqueKey();
 
   // Controladores del formulario
@@ -235,8 +235,8 @@ class _PublishArticleScreenState extends State<PublishArticleScreen> {
     });
   }
 
-  // Guardado en happiley.db y almacenamiento de la descripcion con texto enriquecido
-  Future<void> _publishArticle() async {
+  // Solicitud de confirmación mediante alerta antes de publicar
+  void _confirmPublishArticle() {
     FocusScope.of(context).unfocus();
 
     final bool isFormValid = _formKey.currentState?.validate() ?? false;
@@ -247,7 +247,7 @@ class _PublishArticleScreenState extends State<PublishArticleScreen> {
     if (!isFormValid ||
         _selectedImageFile == null ||
         plainTextDescription.isEmpty) {
-      await LoadingDialog.show(
+      LoadingDialog.show(
         context,
         title: '¡Artículo No Publicado!',
         subtitle: 'Debe completar todos los campos obligatorios, ingresar la descripción y seleccionar una imagen.',
@@ -262,6 +262,19 @@ class _PublishArticleScreenState extends State<PublishArticleScreen> {
       return;
     }
 
+    AlertMessage.show(
+      context: context,
+      title: 'Confirmar Publicación',
+      message: '¿Desea realizar la publicación?',
+      confirmText: 'Sí',
+      cancelText: 'No',
+      isConfirmDefault: false,
+      onConfirm: _publishArticle,
+    );
+  }
+
+  // Guardado en happiley.db y almacenamiento de la descripcion con texto enriquecido
+  Future<void> _publishArticle() async {
     await LoadingDialog.show(
       context,
       title: 'Publicando Artículo.',
@@ -500,9 +513,9 @@ class _PublishArticleScreenState extends State<PublishArticleScreen> {
           ),
           subtitle: subtitle != null
               ? Text(
-                  subtitle,
-                  style: const TextStyle(fontSize: 12, color: Colors.grey),
-                )
+            subtitle,
+            style: const TextStyle(fontSize: 12, color: Colors.grey),
+          )
               : null,
           children: [child],
         ),
@@ -689,7 +702,7 @@ class _PublishArticleScreenState extends State<PublishArticleScreen> {
                         TextFormField(
                           controller: _nameController,
                           validator: (value) =>
-                              value == null || value.trim().isEmpty
+                          value == null || value.trim().isEmpty
                               ? 'Ingresa el nombre del artículo'
                               : null,
                           decoration: _inputDecoration(
@@ -881,7 +894,7 @@ class _PublishArticleScreenState extends State<PublishArticleScreen> {
                           readOnly: true,
                           onTap: _selectDate,
                           validator: (value) =>
-                              value == null || value.trim().isEmpty
+                          value == null || value.trim().isEmpty
                               ? 'Selecciona una fecha'
                               : null,
                           decoration: _inputDecoration(
@@ -924,7 +937,7 @@ class _PublishArticleScreenState extends State<PublishArticleScreen> {
                         const SizedBox(width: 12),
                         Expanded(
                           child: ElevatedButton.icon(
-                            onPressed: _publishArticle,
+                            onPressed: _confirmPublishArticle,
                             icon: const Icon(Icons.send, color: Colors.white),
                             label: const Text(
                               'Publicar Artículo',

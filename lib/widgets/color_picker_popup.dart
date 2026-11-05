@@ -31,7 +31,7 @@ class ColorPickerPopup extends StatefulWidget {
 }
 
 class _ColorPickerPopupState extends State<ColorPickerPopup> {
-  // Colores predeterminados de la aplicacion
+  // Colores predeterminados de la aplicación
   static const List<Color> _defaultColors = [
     Colors.red,
     Colors.blue,
@@ -76,7 +76,7 @@ class _ColorPickerPopupState extends State<ColorPickerPopup> {
     }
   }
 
-  // Persistencia de la coleccion de colores personalizados
+  // Persistencia de la colección de colores personalizados
   Future<void> _saveCustomColors() async {
     final prefs = await SharedPreferences.getInstance();
     final List<String> colorStrings = _customColors.map((color) {
@@ -85,13 +85,13 @@ class _ColorPickerPopupState extends State<ColorPickerPopup> {
     await prefs.setStringList(_keySavedColors, colorStrings);
   }
 
-  // Actualizacion del valor hexadecimal en el campo editable
+  // Actualización del valor hexadecimal en el campo editable
   void _updateHexText(Color color) {
     final String hex = color.value.toRadixString(16).substring(2).toUpperCase();
     _hexController.text = '#$hex';
   }
 
-  // Procesamiento manual de codigo hexadecimal ingresado por el usuario
+  // Procesamiento manual de código hexadecimal ingresado por el usuario
   void _onHexSubmitted(String val) {
     String cleanHex = val.trim().replaceAll('#', '');
     if (cleanHex.length == 6) {
@@ -104,13 +104,11 @@ class _ColorPickerPopupState extends State<ColorPickerPopup> {
     }
   }
 
-  // Almacenamiento del nuevo color personalizado seleccionado
-  void _saveCurrentColor() {
+  // Aplicación inmediata y guardado del color seleccionado
+  void _applyAndSaveColor() {
     if (!_customColors.contains(_selectedColor) &&
         !_defaultColors.contains(_selectedColor)) {
-      setState(() {
-        _customColors.add(_selectedColor);
-      });
+      _customColors.add(_selectedColor);
       _saveCustomColors();
     }
     widget.onColorSelected(_selectedColor);
@@ -137,7 +135,7 @@ class _ColorPickerPopupState extends State<ColorPickerPopup> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Galeria de circulos de colores predeterminados y personalizados
+            // Galería de círculos de colores predeterminados y personalizados
             Wrap(
               spacing: 10,
               runSpacing: 10,
@@ -167,7 +165,7 @@ class _ColorPickerPopupState extends State<ColorPickerPopup> {
                     ),
                   );
                 }),
-                // Boton para agregar un nuevo color personalizado
+                // Botón para agregar un nuevo color personalizado
                 GestureDetector(
                   onTap: () {
                     setState(() {
@@ -194,7 +192,7 @@ class _ColorPickerPopupState extends State<ColorPickerPopup> {
               const SizedBox(height: 16),
               const Divider(),
               const SizedBox(height: 8),
-              // Lienzo bidimensional de seleccion de color y barra de luminosidad
+              // Lienzo bidimensional de selección de color y barra de luminosidad
               ColorPicker(
                 pickerColor: _selectedColor,
                 onColorChanged: (color) {
@@ -212,7 +210,7 @@ class _ColorPickerPopupState extends State<ColorPickerPopup> {
                 pickerAreaBorderRadius: BorderRadius.circular(12),
               ),
               const SizedBox(height: 12),
-              // Campo para codigo hexadecimal del color seleccionado
+              // Campo para código hexadecimal del color seleccionado
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -249,7 +247,7 @@ class _ColorPickerPopupState extends State<ColorPickerPopup> {
           child: const Text('Cancelar', style: TextStyle(color: Colors.grey)),
         ),
         ElevatedButton(
-          onPressed: _saveCurrentColor,
+          onPressed: _applyAndSaveColor,
           style: ElevatedButton.styleFrom(
             backgroundColor: const Color(0xFF5346E0),
             shape: RoundedRectangleBorder(
@@ -257,7 +255,7 @@ class _ColorPickerPopupState extends State<ColorPickerPopup> {
             ),
           ),
           child: const Text(
-            'Guardar Color',
+            'Establecer color',
             style: TextStyle(color: Colors.white),
           ),
         ),

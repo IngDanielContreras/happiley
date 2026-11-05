@@ -147,7 +147,7 @@ class MainScreenState extends State<MainScreen> {
               PublishArticleScreen(
                 database: widget.database,
                 onBack: () {
-                  changeTab(1);
+                  changeTab(3);
                 },
                 onArticlePublished: refreshExploreScreen,
               ),
