@@ -27,29 +27,78 @@ class MainScreen extends StatefulWidget {
 
 class MainScreenState extends State<MainScreen> {
   late int currentIndex;
+  late PageController pageController;
+
   Article? selectedArticle;
+  List<Article> availableArticles = [];
+
   int exploreKeyCounter = 0;
 
   @override
   void initState() {
     super.initState();
-    currentIndex = widget.initialIndex;
+
+    currentIndex = widget.initialIndex.clamp(0, 3);
+
+    pageController = PageController(
+      initialPage: currentIndex,
+    );
+  }
+
+  @override
+  void dispose() {
+    pageController.dispose();
+    super.dispose();
   }
 
   // Cambio de la pestaña activa en la barra de navegacion inferior
   void changeTab(int index) {
+    if (index < 0 || index > 3) return;
+
     setState(() {
       currentIndex = index;
       selectedArticle = null;
     });
+
+    if (pageController.hasClients &&
+        pageController.page?.round() != index) {
+      pageController.animateToPage(
+        index,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+    }
+  }
+
+  void _onPageChanged(int index) {
+    setState(() {
+      currentIndex = index;
+
+      if (index != 1) {
+        selectedArticle = null;
+      }
+    });
   }
 
   // Seleccion de un articulo especifico para visualizar sus detalles
-  void selectArticle(Article article) {
+  void selectArticle(
+      Article article, {
+        List<Article>? articlesList,
+      }) {
     setState(() {
       selectedArticle = article;
+
+      if (articlesList != null) {
+        availableArticles = List<Article>.from(articlesList);
+      }
+
       currentIndex = 1;
     });
+
+    if (pageController.hasClients &&
+        pageController.page?.round() != 1) {
+      pageController.jumpToPage(1);
+    }
   }
 
   // Limpieza y cierre de la vista de detalles del articulo
@@ -63,15 +112,14 @@ class MainScreenState extends State<MainScreen> {
   void buyNowAndGoToCart() {
     setState(() {
       selectedArticle = null;
-      currentIndex = 2;
     });
+
+    changeTab(2);
   }
 
-  // Gestion posterior a un inicio de sesión exitoso
+  // Gestion posterior a un inicio de sesion exitoso
   void _handleLoginSuccess(String userCode) {
-    setState(() {
-      currentIndex = 3;
-    });
+    changeTab(3);
   }
 
   // Proceso de cierre de sesion activa del usuario
@@ -80,18 +128,40 @@ class MainScreenState extends State<MainScreen> {
 
     if (!mounted) return;
 
-    setState(() {
-      currentIndex = 3;
-    });
+    changeTab(3);
   }
 
   // Incremento del contador para forzar la recarga de explore screen y redireccion a ExploreScreen
   void refreshExploreScreen() {
     setState(() {
       exploreKeyCounter++;
-      currentIndex = 1;
       selectedArticle = null;
     });
+
+    changeTab(1);
+  }
+
+  void _handlePopInvoked(bool didPop, dynamic result) {
+    if (didPop) return;
+
+    if (selectedArticle != null) {
+      clearSelectedArticle();
+      return;
+    }
+
+    if (currentIndex == 4) {
+      changeTab(3);
+      return;
+    }
+
+    if (currentIndex != 0) {
+      changeTab(0);
+      return;
+    }
+
+    if (Navigator.canPop(context)) {
+      Navigator.pop(context);
+    }
   }
 
   @override
@@ -99,70 +169,99 @@ class MainScreenState extends State<MainScreen> {
     // Alternancia dinamica entre la interfaz de exploracion y los detalles del carrito
     final Widget exploreOrDetailWidget = selectedArticle != null
         ? ArticleDetailScreen(
-      key: ValueKey('detail_${selectedArticle!.id}'),
+      key: const ValueKey('article_detail_screen'),
       article: selectedArticle!,
+      articlesList: availableArticles,
       onBack: clearSelectedArticle,
       onBuyNow: buyNowAndGoToCart,
+      onArticleChanged: (newArticle) {
+        setState(() {
+          selectedArticle = newArticle;
+        });
+      },
     )
         : ExploreScreen(
       key: ValueKey('explore_screen_$exploreKeyCounter'),
       onCartPressed: () {
         changeTab(2);
       },
-      onArticleSelected: selectArticle,
-    );
-
-    return ValueListenableBuilder<String?>(
-      valueListenable: SessionManager.activeUserCode,
-      builder: (context, userCode, child) {
-        // Renderizado condicional del perfil de usuario o el formulario de inicio de sesion
-        final Widget profileOrLoginWidget = userCode != null
-            ? ProfileScreen(
-          key: ValueKey('user_profile_$userCode'),
-          userCode: userCode,
-          onLogout: onLogout,
-          onPublishArticle: () {
-            changeTab(4);
-          },
-        )
-            : LoginScreen(
-          key: const Key('user_login_screen'),
-          onLoginSuccess: _handleLoginSuccess,
-        );
-
-        return Scaffold(
-          body: IndexedStack(
-            index: currentIndex,
-            children: [
-              HomeScreen(
-                onExplore: () {
-                  changeTab(1);
-                },
-              ),
-              exploreOrDetailWidget,
-              const CartScreen(
-                key: ValueKey('cart_screen'),
-              ),
-              profileOrLoginWidget,
-              PublishArticleScreen(
-                database: widget.database,
-                onBack: () {
-                  changeTab(3);
-                },
-                onArticlePublished: refreshExploreScreen,
-              ),
-            ],
-          ),
-          bottomNavigationBar: currentIndex < 4
-              ? BottomNavigation(
-            selectedIndex: currentIndex,
-            onIndexChanged: (index) {
-              changeTab(index);
-            },
-          )
-              : null,
+      onHomePressed: () {
+        changeTab(0);
+      },
+      onArticleSelected: (article, articlesList) {
+        selectArticle(
+          article,
+          articlesList: articlesList,
         );
       },
+    );
+
+    final bool canSystemPop = currentIndex == 0 &&
+        selectedArticle == null &&
+        !Navigator.canPop(context);
+
+    return PopScope<Object?>(
+      canPop: canSystemPop,
+      onPopInvokedWithResult: _handlePopInvoked,
+      child: ValueListenableBuilder<String?>(
+        valueListenable: SessionManager.activeUserCode,
+        builder: (context, userCode, child) {
+          // Renderizado condicional del perfil de usuario o el formulario de inicio de sesion
+          final Widget profileOrLoginWidget = userCode != null
+              ? ProfileScreen(
+            key: ValueKey('user_profile_$userCode'),
+            userCode: userCode,
+            onLogout: onLogout,
+            onPublishArticle: () {
+              setState(() {
+                currentIndex = 4;
+              });
+            },
+          )
+              : LoginScreen(
+            key: const Key('user_login_screen'),
+            onLoginSuccess: _handleLoginSuccess,
+          );
+
+          return Scaffold(
+            body: currentIndex == 4
+                ? PublishArticleScreen(
+              database: widget.database,
+              onBack: () {
+                changeTab(3);
+              },
+              onArticlePublished: refreshExploreScreen,
+            )
+                : PageView(
+              controller: pageController,
+              onPageChanged: _onPageChanged,
+              physics: selectedArticle != null
+                  ? const NeverScrollableScrollPhysics()
+                  : const ClampingScrollPhysics(),
+              children: [
+                HomeScreen(
+                  onExplore: () {
+                    changeTab(1);
+                  },
+                ),
+                exploreOrDetailWidget,
+                const CartScreen(
+                  key: ValueKey('cart_screen'),
+                ),
+                profileOrLoginWidget,
+              ],
+            ),
+            bottomNavigationBar: currentIndex < 4
+                ? BottomNavigation(
+              selectedIndex: currentIndex,
+              onIndexChanged: (index) {
+                changeTab(index);
+              },
+            )
+                : null,
+          );
+        },
+      ),
     );
   }
 }

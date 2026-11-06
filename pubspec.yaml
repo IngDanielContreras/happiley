@@ -45,6 +45,7 @@ dependencies:
   flutter_localizations:
     sdk: flutter
   flutter_colorpicker: 1.1.0
+  audioplayers: 6.0.0
 
 dev_dependencies:
   flutter_test:
@@ -72,6 +73,7 @@ flutter:
     - lib/assets/images/articles/
     - lib/assets/gifs/welcome_card.gif
     - lib/database/happiley.db
+    - lib/assets/music/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

@@ -8,11 +8,13 @@ import '../widgets/custom_app_bar.dart';
 
 class ExploreScreen extends StatefulWidget {
   final VoidCallback onCartPressed;
-  final ValueChanged<Article>? onArticleSelected;
+  final VoidCallback onHomePressed;
+  final void Function(Article, List<Article>)? onArticleSelected;
 
   const ExploreScreen({
     super.key,
     required this.onCartPressed,
+    required this.onHomePressed,
     this.onArticleSelected,
   });
 
@@ -27,7 +29,10 @@ class _ExploreScreenState extends State<ExploreScreen>
   List<Article> articles = [];
   List<Article> filteredArticles = [];
   bool isLoading = true;
+  bool _cartNavigationTriggered = false;
+  bool _homeNavigationTriggered = false;
   TabController? tabController;
+
   static const int articlesPerPage = 10;
 
   final TextEditingController searchController = TextEditingController();
@@ -44,6 +49,8 @@ class _ExploreScreenState extends State<ExploreScreen>
     try {
       final articlesObtained = await databaseService.getArticles();
 
+      if (!mounted) return;
+
       setState(() {
         articles = articlesObtained;
         filteredArticles = articlesObtained;
@@ -51,11 +58,11 @@ class _ExploreScreenState extends State<ExploreScreen>
         _updatePagination();
       });
     } catch (e) {
+      if (!mounted) return;
+
       setState(() {
         isLoading = false;
       });
-
-      if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -83,15 +90,22 @@ class _ExploreScreenState extends State<ExploreScreen>
         }).toList();
       }
 
+      _cartNavigationTriggered = false;
+      _homeNavigationTriggered = false;
+
       _updatePagination();
     });
   }
 
   // Actualizacion de la paginacion y controlador de pestañas (en la visualizacion de articulos)
   void _updatePagination() {
-    final pageCount = max(1, (filteredArticles.length / articlesPerPage).ceil());
+    final pageCount = max(
+      1,
+      (filteredArticles.length / articlesPerPage).ceil(),
+    );
 
     tabController?.dispose();
+
     tabController = TabController(
       length: pageCount,
       vsync: this,
@@ -120,6 +134,38 @@ class _ExploreScreenState extends State<ExploreScreen>
     }
 
     return filteredArticles.sublist(start, end);
+  }
+
+  bool _handleScrollNotification(ScrollNotification notification) {
+    if (notification is ScrollEndNotification) {
+      _cartNavigationTriggered = false;
+      _homeNavigationTriggered = false;
+    }
+
+    if (notification is OverscrollNotification &&
+        notification.metrics.axis == Axis.horizontal) {
+      if (notification.metrics.atEdge &&
+          notification.metrics.pixels <=
+              notification.metrics.minScrollExtent &&
+          notification.overscroll < 0 &&
+          !_homeNavigationTriggered) {
+        _homeNavigationTriggered = true;
+
+        FocusScope.of(context).unfocus();
+        widget.onHomePressed();
+      } else if (notification.metrics.atEdge &&
+          notification.metrics.pixels >=
+              notification.metrics.maxScrollExtent &&
+          notification.overscroll > 0 &&
+          !_cartNavigationTriggered) {
+        _cartNavigationTriggered = true;
+
+        FocusScope.of(context).unfocus();
+        widget.onCartPressed();
+      }
+    }
+
+    return false;
   }
 
   @override
@@ -209,129 +255,147 @@ class _ExploreScreenState extends State<ExploreScreen>
                   ),
                 ),
               )
-                  : TabBarView(
-                key: ValueKey('tab_view_${filteredArticles.length}_$searchQuery'),
-                controller: tabController,
-                children: List.generate(
-                  totalPages,
-                      (page) {
-                    final pageArticles = articlesForPage(page);
+                  : NotificationListener<ScrollNotification>(
+                onNotification: _handleScrollNotification,
+                child: TabBarView(
+                  key: ValueKey(
+                    'tab_view_${filteredArticles.length}_$searchQuery',
+                  ),
+                  controller: tabController,
+                  children: List.generate(
+                    totalPages,
+                        (page) {
+                      final pageArticles =
+                      articlesForPage(page);
 
-                    return CustomScrollView(
-                      slivers: [
-                        SliverPadding(
-                          padding: const EdgeInsets.all(16),
-                          sliver: SliverGrid(
-                            delegate: SliverChildBuilderDelegate(
-                                  (context, index) {
-                                final article = pageArticles[index];
+                      return CustomScrollView(
+                        slivers: [
+                          SliverPadding(
+                            padding: const EdgeInsets.all(16),
+                            sliver: SliverGrid(
+                              delegate:
+                              SliverChildBuilderDelegate(
+                                    (context, index) {
+                                  final article =
+                                  pageArticles[index];
 
-                                return ArticleCard(
-                                  article: article,
-                                  onTap: () {
-                                    FocusScope.of(context).unfocus();
-                                    if (widget.onArticleSelected !=
-                                        null) {
-                                      widget.onArticleSelected!(
+                                  return ArticleCard(
+                                    article: article,
+                                    onTap: () {
+                                      FocusScope.of(context)
+                                          .unfocus();
+
+                                      widget.onArticleSelected
+                                          ?.call(
                                         article,
+                                        filteredArticles,
                                       );
-                                    }
-                                  },
-                                  onBuy: () {
-                                    FocusScope.of(context).unfocus();
-                                    if (!CartManager.isSelected(
-                                        article)) {
-                                      CartManager.toggleProduct(
-                                        article,
-                                      );
-                                    }
-                                    widget.onCartPressed();
-                                  },
-                                );
-                              },
-                              childCount: pageArticles.length,
-                            ),
-                            gridDelegate:
-                            const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 2,
-                              crossAxisSpacing: 12,
-                              mainAxisSpacing: 12,
-                              childAspectRatio: 0.68,
+                                    },
+                                    onBuy: () {
+                                      FocusScope.of(context)
+                                          .unfocus();
+
+                                      if (!CartManager
+                                          .isSelected(article)) {
+                                        CartManager
+                                            .toggleProduct(
+                                          article,
+                                        );
+                                      }
+
+                                      widget.onCartPressed();
+                                    },
+                                  );
+                                },
+                                childCount: pageArticles.length,
+                              ),
+                              gridDelegate:
+                              const SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 2,
+                                crossAxisSpacing: 12,
+                                mainAxisSpacing: 12,
+                                childAspectRatio: 0.68,
+                              ),
                             ),
                           ),
-                        ),
 
-                        if (totalPages > 1)
-                          SliverToBoxAdapter(
-                            child: Padding(
-                              padding: const EdgeInsets.only(
-                                bottom: 24,
-                                top: 8,
-                              ),
-                              child: Center(
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                    vertical: 4,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: Colors.grey.shade100,
-                                    borderRadius:
-                                    BorderRadius.circular(25),
-                                    border: Border.all(
-                                      color: Colors.grey.shade300,
+                          if (totalPages > 1)
+                            SliverToBoxAdapter(
+                              child: Padding(
+                                padding: const EdgeInsets.only(
+                                  bottom: 24,
+                                  top: 8,
+                                ),
+                                child: Center(
+                                  child: Container(
+                                    padding:
+                                    const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 4,
                                     ),
-                                  ),
-                                  child: IntrinsicWidth(
-                                    child: TabBar(
-                                      controller: tabController,
-                                      isScrollable: true,
-                                      tabAlignment:
-                                      TabAlignment.center,
-                                      dividerColor:
-                                      Colors.transparent,
-                                      indicator:
-                                      const BoxDecoration(
-                                        color: Color(0xFF5548F5),
-                                        shape: BoxShape.circle,
+                                    decoration: BoxDecoration(
+                                      color: Colors.grey.shade100,
+                                      borderRadius:
+                                      BorderRadius.circular(25),
+                                      border: Border.all(
+                                        color:
+                                        Colors.grey.shade300,
                                       ),
-                                      indicatorSize:
-                                      TabBarIndicatorSize.tab,
-                                      labelColor: Colors.white,
-                                      unselectedLabelColor:
-                                      Colors.grey.shade700,
-                                      labelStyle: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                      labelPadding:
-                                      const EdgeInsets.symmetric(
-                                        horizontal: 3,
-                                      ),
-                                      tabs: List.generate(
-                                        totalPages,
-                                            (index) {
-                                          return Tab(
-                                            child: SizedBox(
-                                              width: 30,
-                                              height: 30,
-                                              child: Center(
-                                                child: Text(
-                                                  '${index + 1}',
+                                    ),
+                                    child: IntrinsicWidth(
+                                      child: TabBar(
+                                        controller: tabController,
+                                        isScrollable: true,
+                                        tabAlignment:
+                                        TabAlignment.center,
+                                        dividerColor:
+                                        Colors.transparent,
+                                        indicator:
+                                        const BoxDecoration(
+                                          color: Color(0xFF5548F5),
+                                          shape: BoxShape.circle,
+                                        ),
+                                        indicatorSize:
+                                        TabBarIndicatorSize.tab,
+                                        labelColor: Colors.white,
+                                        unselectedLabelColor:
+                                        Colors.grey.shade700,
+                                        labelStyle:
+                                        const TextStyle(
+                                          fontWeight:
+                                          FontWeight.bold,
+                                        ),
+                                        labelPadding:
+                                        const EdgeInsets
+                                            .symmetric(
+                                          horizontal: 3,
+                                        ),
+                                        tabs: List.generate(
+                                          totalPages,
+                                              (index) {
+                                            return Tab(
+                                              child: SizedBox(
+                                                width: 30,
+                                                height: 30,
+                                                child: Center(
+                                                  child: Text(
+                                                    '${index + 1}',
+                                                  ),
                                                 ),
                                               ),
-                                            ),
-                                          );
-                                        },
+                                            );
+                                          },
+                                        ),
                                       ),
                                     ),
                                   ),
                                 ),
                               ),
                             ),
-                          ),
-                      ],
-                    );
-                  },
+                        ],
+                      );
+                    },
+                  ),
                 ),
               ),
             ),
@@ -352,7 +416,9 @@ class _ExploreScreenState extends State<ExploreScreen>
                   ? const SizedBox.shrink()
                   : Text(
                 '$count',
-                style: const TextStyle(fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               onPressed: () {
                 FocusScope.of(context).unfocus();

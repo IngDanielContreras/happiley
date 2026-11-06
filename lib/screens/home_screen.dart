@@ -4,6 +4,7 @@ import 'about_credits_screen.dart';
 import 'main_screen.dart';
 import '../widgets/alert_message.dart';
 import '../widgets/loading_dialog.dart';
+import '../services/music_manager.dart';
 
 class HomeScreen extends StatelessWidget {
   final VoidCallback? onExplore;
@@ -22,6 +23,7 @@ class HomeScreen extends StatelessWidget {
       autoDismiss: true,
       duration: const Duration(seconds: 5),
     );
+
     await Future.delayed(const Duration(seconds: 5));
     SystemNavigator.pop();
   }
@@ -62,9 +64,11 @@ class HomeContent extends StatelessWidget {
     required this.onExitApp,
   });
 
-// Estructura visual
+  // Estructura visual
   @override
   Widget build(BuildContext context) {
+    final musicManager = MusicManager();
+
     return Scaffold(
       // Barra superior corporativa de la aplicacion
       appBar: AppBar(
@@ -81,6 +85,23 @@ class HomeContent extends StatelessWidget {
         ),
         centerTitle: true,
         actions: [
+          // Botón de alternancia de música de fondo ubicado junto a las notificaciones
+          ValueListenableBuilder<bool>(
+            valueListenable: musicManager.isPlayingNotifier,
+            builder: (context, isPlaying, child) {
+              return Tooltip(
+                message: isPlaying ? 'Pausar música' : 'Reproducir música',
+                child: IconButton(
+                  icon: Icon(
+                    // Alternancia visual entre nota musical y nota silenciada
+                    isPlaying ? Icons.music_note : Icons.music_off,
+                    color: Colors.white,
+                  ),
+                  onPressed: () => musicManager.toggleMusic(),
+                ),
+              );
+            },
+          ),
           // Icono de notificaciones superior derecho
           IconButton(
             onPressed: () {},
@@ -107,7 +128,9 @@ class HomeContent extends StatelessWidget {
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(26),
                       image: const DecorationImage(
-                        image: AssetImage('lib/assets/images/welcome_card1.png'),
+                        image: AssetImage(
+                          'lib/assets/images/welcome_card1.png',
+                        ),
                         fit: BoxFit.cover,
                       ),
                       border: Border.all(
@@ -213,7 +236,8 @@ class HomeContent extends StatelessWidget {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => const AboutCreditsScreen(),
+                            builder: (context) =>
+                            const AboutCreditsScreen(),
                           ),
                         );
                       },
@@ -256,7 +280,8 @@ class HomeContent extends StatelessWidget {
                         AlertMessage.show(
                           context: context,
                           title: 'Cerrar Aplicación',
-                          message: '¿Está seguro de que desea cerrar la aplicación?',
+                          message:
+                          '¿Está seguro de que desea cerrar la aplicación?',
                           confirmText: 'Sí',
                           cancelText: 'No',
                           isConfirmDefault: false,

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/article.dart';
 import '../services/cart_manager.dart';
 import '../services/app_utils.dart';
+import '../widgets/loading_dialog.dart';
 
 class ArticleCard extends StatelessWidget {
   final Article article;
@@ -16,7 +17,7 @@ class ArticleCard extends StatelessWidget {
     this.onTap,
   });
 
-  // Renderizado dinámico de la imagen según su origen local o de assets.
+  // Renderizado dinamico de la imagen segun su origen local o de assets.
   Widget _buildArticleImage(String? imagePath) {
     if (imagePath == null || imagePath.isEmpty) {
       return const Icon(
@@ -47,6 +48,28 @@ class ArticleCard extends StatelessWidget {
       errorBuilder: (context, error, stackTrace) => const Icon(
         Icons.broken_image,
         color: Colors.grey,
+      ),
+    );
+  }
+
+  Future<void> _handleCartIconPressed(BuildContext context) async {
+    if (CartManager.isSelected(article)) {
+      CartManager.toggleProduct(article);
+      return;
+    }
+
+    CartManager.toggleProduct(article);
+
+    await LoadingDialog.show(
+      context,
+      title: 'Artículo Agregado',
+      subtitle: 'Su artículo ha sido agregado correctamente.',
+      autoDismiss: true,
+      duration: const Duration(seconds: 3),
+      customIcon: const Icon(
+        Icons.check_circle_rounded,
+        color: Color(0xFF4CAF50),
+        size: 64,
       ),
     );
   }
@@ -83,7 +106,7 @@ class ArticleCard extends StatelessWidget {
 
               const SizedBox(height: 8),
 
-              // Información general
+              // Informacion general
               Text(
                 article.name,
                 maxLines: 1,
@@ -116,7 +139,7 @@ class ArticleCard extends StatelessWidget {
 
               const SizedBox(height: 6),
 
-              // Botones de acción
+              // Botones de accion
               Row(
                 children: [
                   Expanded(
@@ -161,9 +184,13 @@ class ArticleCard extends StatelessWidget {
                               isSelected
                                   ? Icons.shopping_cart
                                   : Icons.shopping_cart_outlined,
-                              color: isSelected ? Colors.white : Colors.grey.shade700,
+                              color: isSelected
+                                  ? Colors.white
+                                  : Colors.grey.shade700,
                             ),
-                            onPressed: () => CartManager.toggleProduct(article),
+                            onPressed: () {
+                              _handleCartIconPressed(context);
+                            },
                           ),
                         ),
                       );
