@@ -69,18 +69,17 @@ class _ArticleDescriptionViewerState
       return const Text(
         'Sin descripción disponible.',
         style: TextStyle(
-          color: Colors.grey,
+          color: Color(0xFF616161),
           fontSize: 14,
         ),
       );
     }
 
     if (_controller == null) {
-      // Soporte retrocompatible para articulos guardados en texto plano legacy
       return Text(
         widget.description,
-        style: TextStyle(
-          color: Colors.grey.shade700,
+        style: const TextStyle(
+          color: Color(0xFF616161),
           fontSize: 14,
         ),
       );
@@ -88,9 +87,21 @@ class _ArticleDescriptionViewerState
 
     return QuillEditor.basic(
       controller: _controller!,
-      config: const QuillEditorConfig(
+      config: QuillEditorConfig(
         autoFocus: false,
         expands: false,
+        customStyles: DefaultStyles(
+          paragraph: DefaultTextBlockStyle(
+            const TextStyle(
+              color: Color(0xFF616161),
+              fontSize: 14,
+            ),
+            const HorizontalSpacing(0, 0),
+            const VerticalSpacing(0, 0),
+            const VerticalSpacing(0, 0),
+            null,
+          ),
+        ),
       ),
     );
   }

@@ -20,10 +20,23 @@ class _RichTextToolbarState extends State<RichTextToolbar> {
   final TextEditingController _fontSizeTextController =
   TextEditingController(text: '14');
 
+  static const Color _defaultTextColor = Color(0xFF657080);
+
   @override
   void initState() {
     super.initState();
     widget.controller.addListener(_onControllerSelectionChanged);
+  }
+
+  @override
+  void didUpdateWidget(covariant RichTextToolbar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    if (oldWidget.controller != widget.controller) {
+      oldWidget.controller.removeListener(_onControllerSelectionChanged);
+      widget.controller.addListener(_onControllerSelectionChanged);
+      _onControllerSelectionChanged();
+    }
   }
 
   @override
@@ -33,27 +46,33 @@ class _RichTextToolbarState extends State<RichTextToolbar> {
     super.dispose();
   }
 
-  // Detección automática del tamaño de fuente en la selección actual del texto
+  // Deteccion automatica del tamano de fuente en la seleccion actual del texto
   void _onControllerSelectionChanged() {
+    if (!mounted) return;
+
     final style = widget.controller.getSelectionStyle();
     final fontSizeAttr = style.attributes[Attribute.size.key];
+
+    double newSize = 14.0;
 
     if (fontSizeAttr != null && fontSizeAttr.value != null) {
       final double? parsed =
       double.tryParse(fontSizeAttr.value.toString());
 
-      if (parsed != null && parsed != _fontSize) {
-        final double clamped = parsed.clamp(8.0, 50.0).toDouble();
-
-        setState(() {
-          _fontSize = clamped;
-          _fontSizeTextController.text = clamped.toInt().toString();
-        });
+      if (parsed != null) {
+        newSize = parsed.clamp(8.0, 50.0).toDouble();
       }
+    }
+
+    if (newSize != _fontSize) {
+      setState(() {
+        _fontSize = newSize;
+        _fontSizeTextController.text = newSize.toInt().toString();
+      });
     }
   }
 
-  // Validación y aplicación del tamaño de letra dentro del rango permitido (8 a 50)
+  // Validacion y aplicacion del tamano de letra dentro del rango permitido (8 a 50)
   void _applyFontSize(double newSize) {
     final double clamped = newSize.clamp(8.0, 50.0).toDouble();
 
@@ -68,13 +87,13 @@ class _RichTextToolbarState extends State<RichTextToolbar> {
     );
   }
 
-  // Verificación del estado activo del formato en el texto seleccionado
+  // Verificacion del estado activo del formato en el texto seleccionado
   bool _isAttributeActive(Attribute<dynamic> attribute) {
     final style = widget.controller.getSelectionStyle();
     return style.containsKey(attribute.key);
   }
 
-  // Verificación de la alineación activa en el párrafo seleccionado
+  // Verificacion de la alineacion activa en el parrafo seleccionado
   bool _isAlignmentActive(Attribute<dynamic> attribute) {
     final style = widget.controller.getSelectionStyle();
     final attr = style.attributes[Attribute.align.key];
@@ -86,7 +105,7 @@ class _RichTextToolbarState extends State<RichTextToolbar> {
     return attr.value == attribute.value;
   }
 
-  // Alternancia de formatos tipográficos en el texto seleccionado
+  // Alternancia de formatos tipograficos en el texto seleccionado
   void _toggleAttribute(Attribute<dynamic> attribute) {
     final bool isActive = _isAttributeActive(attribute);
 
@@ -101,13 +120,13 @@ class _RichTextToolbarState extends State<RichTextToolbar> {
     setState(() {});
   }
 
-  // Alternancia de alineaciones de párrafo en la selección actual
+  // Alternancia de alineaciones de parrafo en la seleccion actual
   void _toggleAlignment(Attribute<dynamic> attribute) {
     widget.controller.formatSelection(attribute);
     setState(() {});
   }
 
-  // Restablecimiento de estilos tipográficos conservando la estructura de párrafos y listas
+  // Restablecimiento de estilos tipograficos conservando la estructura de parrafos y listas
   void _resetFormatting() {
     final List<Attribute<dynamic>> attrsToRemove = [
       Attribute.bold,
@@ -125,10 +144,47 @@ class _RichTextToolbarState extends State<RichTextToolbar> {
       );
     }
 
-    setState(() {});
+    setState(() {
+      _fontSize = 14.0;
+      _fontSizeTextController.text = '14';
+    });
   }
 
-  // Apertura del modal selector de colores y aplicación directa al texto seleccionado
+  Color _parseColor(dynamic value, Color fallback) {
+    if (value is Color) {
+      return value;
+    }
+
+    if (value == null) {
+      return fallback;
+    }
+
+    String colorString = value.toString().trim();
+
+    if (colorString.startsWith('#')) {
+      colorString = colorString.substring(1);
+    } else if (colorString.startsWith('0x')) {
+      colorString = colorString.substring(2);
+    }
+
+    final int? colorValue = int.tryParse(colorString, radix: 16);
+
+    if (colorValue == null) {
+      return fallback;
+    }
+
+    if (colorString.length == 6) {
+      return Color(0xFF000000 | colorValue);
+    }
+
+    if (colorString.length == 8) {
+      return Color(colorValue);
+    }
+
+    return fallback;
+  }
+
+  // Apertura del modal selector de colores y aplicacion directa al texto seleccionado
   void _openColorPicker(bool isBackground) {
     final style = widget.controller.getSelectionStyle();
 
@@ -137,15 +193,12 @@ class _RichTextToolbarState extends State<RichTextToolbar> {
 
     final Attribute<dynamic>? currentAttr = style.attributes[attrKey];
 
-    if (currentAttr != null) {
-      final Attribute<dynamic> attributeToToggle =
-      isBackground ? Attribute.background : Attribute.color;
-
-      _toggleAttribute(attributeToToggle);
-      return;
-    }
-
-    Color initialColor = isBackground ? Colors.yellow : Colors.black;
+    final Color initialColor = currentAttr != null
+        ? _parseColor(
+      currentAttr.value,
+      isBackground ? Colors.yellow : _defaultTextColor,
+    )
+        : (isBackground ? Colors.yellow : _defaultTextColor);
 
     ColorPickerPopup.show(
       context: context,
@@ -166,7 +219,7 @@ class _RichTextToolbarState extends State<RichTextToolbar> {
     );
   }
 
-  // Construcción de botón de formato con soporte de estado activo e indicador informativo tooltip
+  // Construccion de boton de formato con soporte de estado activo e indicador informativo tooltip
   Widget _buildToolbarButton({
     required IconData icon,
     required String tooltip,
@@ -215,7 +268,7 @@ class _RichTextToolbarState extends State<RichTextToolbar> {
               scrollDirection: Axis.horizontal,
               child: Row(
                 children: [
-                  // Botón para desplegar el selector de tamaño de fuente
+                  // Boton para desplegar el selector de tamano de fuente
                   _buildToolbarButton(
                     icon: Icons.format_size,
                     tooltip: 'Tamaño de letra',
@@ -227,7 +280,7 @@ class _RichTextToolbarState extends State<RichTextToolbar> {
                     },
                   ),
                   const VerticalDivider(width: 16),
-                  // Botones de estilo tipográfico
+                  // Botones de estilo tipografico
                   _buildToolbarButton(
                     icon: Icons.format_bold,
                     tooltip: 'Negrilla',
@@ -254,7 +307,7 @@ class _RichTextToolbarState extends State<RichTextToolbar> {
                         _toggleAttribute(Attribute.strikeThrough),
                   ),
                   const VerticalDivider(width: 16),
-                  // Botones para elección de color de letra y resaltado de texto
+                  // Botones para eleccion de color de letra y resaltado de texto
                   _buildToolbarButton(
                     icon: Icons.format_color_text,
                     tooltip: 'Color de letra',
@@ -268,7 +321,7 @@ class _RichTextToolbarState extends State<RichTextToolbar> {
                     onPressed: () => _openColorPicker(true),
                   ),
                   const VerticalDivider(width: 16),
-                  // Botones de alineación de párrafos
+                  // Botones de alineacion de parrafos
                   _buildToolbarButton(
                     icon: Icons.format_align_left,
                     tooltip: 'Alinear a la izquierda',
@@ -298,7 +351,7 @@ class _RichTextToolbarState extends State<RichTextToolbar> {
                         _toggleAlignment(Attribute.justifyAlignment),
                   ),
                   const VerticalDivider(width: 16),
-                  // Botones para listas numeradas y viñetas
+                  // Botones para listas numeradas y vinetas
                   _buildToolbarButton(
                     icon: Icons.format_list_bulleted,
                     tooltip: 'Viñetas',
@@ -346,7 +399,7 @@ class _RichTextToolbarState extends State<RichTextToolbar> {
                     ),
                   ),
                   const VerticalDivider(width: 16),
-                  // Botón para restablecer el formato tipográfico a texto plano conservando la estructura
+                  // Boton para restablecer el formato tipografico a texto plano conservando la estructura
                   _buildToolbarButton(
                     icon: Icons.format_clear,
                     tooltip: 'Restablecer formato',
@@ -358,7 +411,7 @@ class _RichTextToolbarState extends State<RichTextToolbar> {
             ),
           ),
 
-          // Campo numérico desplegable para ingresar tamaño de fuente (Máximo 50)
+          // Campo numerico desplegable para ingresar tamano de fuente (Maximo 50)
           if (_showFontSizeInput)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
