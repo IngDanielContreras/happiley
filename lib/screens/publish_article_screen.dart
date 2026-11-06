@@ -245,6 +245,49 @@ class _PublishArticleScreenState extends State<PublishArticleScreen> {
     });
   }
 
+  // Confirmacion antes de limpiar los campos del formulario
+  Future<void> _confirmClearForm() async {
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Limpiar Formulario'),
+          content: const Text(
+            '¿Estás seguro de que deseas eliminar toda la información ingresada? Esta acción no se puede deshacer.',
+          ),
+          actionsAlignment: MainAxisAlignment.center,
+          actions: [
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop(true);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Limpiar'),
+            ),
+            ElevatedButton(
+              autofocus: true,
+              onPressed: () {
+                Navigator.of(dialogContext).pop(false);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF5346E0),
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Cancelar'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (!mounted || confirmed != true) return;
+
+    _clearForm();
+  }
+
   // Solicitud de confirmación mediante alerta antes de publicar
   void _confirmPublishArticle() {
     FocusScope.of(context).unfocus();
@@ -983,7 +1026,7 @@ class _PublishArticleScreenState extends State<PublishArticleScreen> {
                   children: [
                     Expanded(
                       child: OutlinedButton.icon(
-                        onPressed: _clearForm,
+                        onPressed: _confirmClearForm,
                         icon: const Icon(
                           Icons.delete_outline,
                           color: primaryColor,
