@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../models/article.dart';
 import '../database/article_service.dart';
 import '../database/persistence_service.dart';
@@ -7,7 +8,8 @@ import '../database/persistence_service.dart';
 class CartManager {
   // Notificacion de cambios en la seleccion
   static final ValueNotifier<List<Article>> selectedArticles = ValueNotifier(
-      []);
+    [],
+  );
 
   // Instanciacion de los servicios de base de datos
   static final ArticleService _articleService = ArticleService();
@@ -18,16 +20,13 @@ class CartManager {
     try {
       final savedIds = await _persistenceService.getSavedCartIds();
 
-      if (savedIds.isNotEmpty) {
-        final allArticles = await _articleService.getArticles();
+      final allArticles = await _articleService.getArticles();
 
-        // Filtrado de articulos coincidentes
-        final loadedArticles = allArticles.where((article) {
-          return savedIds.contains(article.id);
-        }).toList();
+      final loadedArticles = allArticles.where((article) {
+        return savedIds.contains(article.id);
+      }).toList();
 
-        selectedArticles.value = loadedArticles;
-      }
+      selectedArticles.value = loadedArticles;
     } catch (e) {
       debugPrint('Error en carga del carrito: $e');
     }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:sqflite/sqflite.dart';
+
 import 'explore_screen.dart';
 import 'cart_screen.dart';
 import 'profile_screen.dart';
@@ -38,7 +39,7 @@ class MainScreenState extends State<MainScreen> {
   void initState() {
     super.initState();
 
-    currentIndex = widget.initialIndex.clamp(0, 3);
+    currentIndex = widget.initialIndex.clamp(0, 3).toInt();
 
     pageController = PageController(
       initialPage: currentIndex,
@@ -131,7 +132,7 @@ class MainScreenState extends State<MainScreen> {
     changeTab(3);
   }
 
-  // Incremento del contador para forzar la recarga de explore screen y redireccion a ExploreScreen
+  // Incremento del contador para forzar la recarga de explore screen
   void refreshExploreScreen() {
     setState(() {
       exploreKeyCounter++;
@@ -146,6 +147,17 @@ class MainScreenState extends State<MainScreen> {
     });
   }
 
+  // Retorno al perfil del usuario desde la pantalla de publicacion
+  void returnToProfile() {
+    if (!mounted || currentIndex != 4) return;
+
+    setState(() {
+      currentIndex = 3;
+      selectedArticle = null;
+    });
+  }
+
+  // Gestion del gesto de retroceso del sistema Android
   void _handlePopInvoked(bool didPop, dynamic result) {
     if (didPop) return;
 
@@ -155,7 +167,7 @@ class MainScreenState extends State<MainScreen> {
     }
 
     if (currentIndex == 4) {
-      changeTab(3);
+      returnToProfile();
       return;
     }
 
@@ -171,7 +183,6 @@ class MainScreenState extends State<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Alternancia dinamica entre la interfaz de exploracion y los detalles del carrito
     final Widget exploreOrDetailWidget = selectedArticle != null
         ? ArticleDetailScreen(
       key: const ValueKey('article_detail_screen'),
@@ -211,7 +222,7 @@ class MainScreenState extends State<MainScreen> {
       child: ValueListenableBuilder<String?>(
         valueListenable: SessionManager.activeUserCode,
         builder: (context, userCode, child) {
-          // Renderizado condicional del perfil de usuario o el formulario de inicio de sesion
+          // Renderizado condicional del perfil de usuario o inicio de sesion
           final Widget profileOrLoginWidget = userCode != null
               ? ProfileScreen(
             key: ValueKey('user_profile_$userCode'),
@@ -229,31 +240,37 @@ class MainScreenState extends State<MainScreen> {
           );
 
           return Scaffold(
-            body: currentIndex == 4
-                ? PublishArticleScreen(
-              database: widget.database,
-              onBack: () {
-                changeTab(3);
-              },
-              onArticlePublished: refreshExploreScreen,
-            )
-                : PageView(
-              controller: pageController,
-              onPageChanged: _onPageChanged,
-              physics: selectedArticle != null
-                  ? const NeverScrollableScrollPhysics()
-                  : const ClampingScrollPhysics(),
+            body: Stack(
+              fit: StackFit.expand,
               children: [
-                HomeScreen(
-                  onExplore: () {
-                    changeTab(1);
-                  },
+                PageView(
+                  controller: pageController,
+                  onPageChanged: _onPageChanged,
+                  physics: selectedArticle != null
+                      ? const NeverScrollableScrollPhysics()
+                      : const ClampingScrollPhysics(),
+                  children: [
+                    HomeScreen(
+                      onExplore: () {
+                        changeTab(1);
+                      },
+                    ),
+                    exploreOrDetailWidget,
+                    const CartScreen(
+                      key: ValueKey('cart_screen'),
+                    ),
+                    profileOrLoginWidget,
+                  ],
                 ),
-                exploreOrDetailWidget,
-                const CartScreen(
-                  key: ValueKey('cart_screen'),
-                ),
-                profileOrLoginWidget,
+
+                if (currentIndex == 4)
+                  Positioned.fill(
+                    child: PublishArticleScreen(
+                      database: widget.database,
+                      onBack: returnToProfile,
+                      onArticlePublished: refreshExploreScreen,
+                    ),
+                  ),
               ],
             ),
             bottomNavigationBar: currentIndex < 4

@@ -1,8 +1,17 @@
 import 'package:flutter/material.dart';
 import 'services/theme_manager.dart';
+import 'services/session_manager.dart';
 import 'screens/main_screen.dart';
+import 'services/cart_manager.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  await Future.wait([
+    SessionManager.loadSavedSession(),
+    CartManager.loadSavedCart(),
+  ]);
+
   runApp(const MyApp());
 }
 
@@ -20,6 +29,7 @@ class MyApp extends StatelessWidget {
           title: 'Happiley',
           debugShowCheckedModeBanner: false,
           themeMode: currentMode,
+
           // Definicion del tema claro principal de la aplicacion
           theme: ThemeData(
             useMaterial3: true,
@@ -31,6 +41,7 @@ class MyApp extends StatelessWidget {
               brightness: Brightness.light,
             ),
           ),
+
           // Definicion del tema oscuro para soporte en toda la interfaz
           darkTheme: ThemeData(
             useMaterial3: true,
@@ -42,6 +53,7 @@ class MyApp extends StatelessWidget {
               brightness: Brightness.dark,
             ),
           ),
+
           home: const MainScreen(),
         );
       },
