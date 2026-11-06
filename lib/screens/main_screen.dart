@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:sqflite/sqflite.dart';
-
 import 'explore_screen.dart';
 import 'cart_screen.dart';
 import 'profile_screen.dart';

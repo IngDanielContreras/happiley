@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-
 import '../models/article.dart';
 import '../database/article_service.dart';
 import '../database/persistence_service.dart';
