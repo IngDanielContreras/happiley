@@ -237,10 +237,6 @@ class _ExploreScreenState extends State<ExploreScreen>
                 onChanged: _filterArticles,
                 decoration: InputDecoration(
                   hintText: 'Buscar productos...',
-                  prefixIcon: const Icon(
-                    Icons.search,
-                    color: Color(0xFF657080),
-                  ),
                   suffixIcon: searchQuery.isNotEmpty
                       ? IconButton(
                     icon: const Icon(
@@ -252,7 +248,10 @@ class _ExploreScreenState extends State<ExploreScreen>
                       _filterArticles('');
                     },
                   )
-                      : null,
+                      : const Icon(
+                    Icons.search,
+                    color: Color(0xFF657080),
+                  ),
                   filled: true,
                   fillColor: const Color(0xFFF2F4F7),
                   contentPadding: const EdgeInsets.symmetric(

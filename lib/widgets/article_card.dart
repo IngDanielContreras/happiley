@@ -119,13 +119,17 @@ class ArticleCard extends StatelessWidget {
               const SizedBox(height: 8),
 
               // Informacion general
-              Text(
-                article.name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
+              SizedBox(
+                height: 36,
+                child: Text(
+                  article.name,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                    height: 1.3,
+                  ),
                 ),
               ),
 
