@@ -22,7 +22,7 @@ class MusicManager with WidgetsBindingObserver {
 
   // Ruta física del archivo de audio en los assets del proyecto
   static const String _audioAssetPath =
-      'lib/assets/music/musica_fondo_happiley.mp3';
+      'lib/assets/music/toned_background_music.mp3';
 
   // Gestion del ciclo de vida de la aplicacion para pausar y reanudar el audio
   @override
