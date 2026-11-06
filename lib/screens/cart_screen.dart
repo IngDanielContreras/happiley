@@ -14,8 +14,10 @@ class CartScreen extends StatefulWidget {
 }
 
 class _CartScreenState extends State<CartScreen> {
+  // Mapa de persistencia temporal para las cantidades asociadas al ID del articulo
   final Map<int, int> quantities = {};
 
+  // Sincronizacion inicial del mapa de cantidades con los articulos activos en el carrito
   void _syncQuantities(List<Article> articles) {
     for (var article in articles) {
       if (!quantities.containsKey(article.id)) {
@@ -24,6 +26,7 @@ class _CartScreenState extends State<CartScreen> {
     }
   }
 
+  // Calculo del monto total acumulado multiplicando precio de venta por cantidad seleccionada
   double getTotal() {
     double total = 0.0;
     for (var article in CartManager.selectedArticles.value) {
@@ -33,6 +36,7 @@ class _CartScreenState extends State<CartScreen> {
     return total;
   }
 
+  // Incremento controlado de unidades respetando el limite de existencias disponible en stock
   void incrementQuantity(Article article) {
     setState(() {
       int current = quantities[article.id] ?? 1;
@@ -42,6 +46,7 @@ class _CartScreenState extends State<CartScreen> {
     });
   }
 
+  // Decremento de unidades con eliminacion automatica al reducir por debajo de la unidad
   void decrementQuantity(Article article) {
     int current = quantities[article.id] ?? 1;
     if (current > 1) {
@@ -53,6 +58,7 @@ class _CartScreenState extends State<CartScreen> {
     }
   }
 
+  // Remocion del articulo tanto del registro local de cantidades como del estado global del carrito
   void removeItem(Article article) {
     setState(() {
       quantities.remove(article.id);
@@ -60,6 +66,7 @@ class _CartScreenState extends State<CartScreen> {
     });
   }
 
+  // Simulacion asincrona del procesamiento de pago y despliegue de dialogos de confirmacion
   Future<void> _processPurchase() async {
     LoadingDialog.show(
       context,
@@ -109,6 +116,7 @@ class _CartScreenState extends State<CartScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      // Barra superior principal con la identificacion de la pantalla del carrito
       appBar: AppBar(
         backgroundColor: const Color(0xFF5548F5),
         foregroundColor: Colors.white,
@@ -121,6 +129,7 @@ class _CartScreenState extends State<CartScreen> {
         ),
         centerTitle: true,
       ),
+      // Escucha reactiva de la lista de articulos seleccionados en el gestor de carrito
       body: ValueListenableBuilder<List<Article>>(
         valueListenable: CartManager.selectedArticles,
         builder: (context, selectedList, _) {
@@ -137,6 +146,7 @@ class _CartScreenState extends State<CartScreen> {
 
           return Column(
             children: [
+              // Lista animada de articulos agregados al carrito
               Expanded(
                 child: AnimatedList(
                   key: ValueKey(selectedList.length),
@@ -161,6 +171,7 @@ class _CartScreenState extends State<CartScreen> {
                   },
                 ),
               ),
+              // Panel inferior de resumen de costos y boton de confirmacion
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
@@ -234,6 +245,7 @@ class _CartScreenState extends State<CartScreen> {
     );
   }
 
+  // Construccion del item individual de la tarjeta del carrito
   Widget _buildCartTile(Article article) {
     final qty = quantities[article.id] ?? 1;
 
