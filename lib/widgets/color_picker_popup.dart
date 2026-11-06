@@ -5,23 +5,27 @@ import 'package:shared_preferences/shared_preferences.dart';
 class ColorPickerPopup extends StatefulWidget {
   final Color initialColor;
   final ValueChanged<Color> onColorSelected;
+  final VoidCallback onColorCleared;
 
   const ColorPickerPopup({
     super.key,
     required this.initialColor,
     required this.onColorSelected,
+    required this.onColorCleared,
   });
 
   static Future<void> show({
     required BuildContext context,
     required Color initialColor,
     required ValueChanged<Color> onColorSelected,
+    required VoidCallback onColorCleared,
   }) async {
     await showDialog(
       context: context,
       builder: (context) => ColorPickerPopup(
         initialColor: initialColor,
         onColorSelected: onColorSelected,
+        onColorCleared: onColorCleared,
       ),
     );
   }
@@ -31,7 +35,7 @@ class ColorPickerPopup extends StatefulWidget {
 }
 
 class _ColorPickerPopupState extends State<ColorPickerPopup> {
-  // Colores predeterminados de la aplicación
+  // Colores predeterminados de la aplicacion
   static const List<Color> _defaultColors = [
     Colors.red,
     Colors.blue,
@@ -48,6 +52,8 @@ class _ColorPickerPopupState extends State<ColorPickerPopup> {
   List<Color> _customColors = [];
   late Color _selectedColor;
   bool _showAdvancedPicker = false;
+  bool _clearColor = false;
+
   final TextEditingController _hexController = TextEditingController();
 
   static const String _keySavedColors = 'happiley_custom_editor_colors';
@@ -63,54 +69,76 @@ class _ColorPickerPopupState extends State<ColorPickerPopup> {
   // Carga de colores personalizados guardados en persistencia local
   Future<void> _loadCustomColors() async {
     final prefs = await SharedPreferences.getInstance();
-    final List<String>? colorStrings = prefs.getStringList(_keySavedColors);
-    if (colorStrings != null) {
-      setState(() {
-        _customColors = colorStrings.map((hex) {
-          final buffer = StringBuffer();
-          if (hex.length == 6 || hex.length == 7) buffer.write('ff');
-          buffer.write(hex.replaceFirst('#', ''));
-          return Color(int.parse(buffer.toString(), radix: 16));
-        }).toList();
-      });
-    }
+    final List<String>? colorStrings =
+    prefs.getStringList(_keySavedColors);
+
+    if (!mounted || colorStrings == null) return;
+
+    setState(() {
+      _customColors = colorStrings.map((hex) {
+        final buffer = StringBuffer();
+        final cleanHex = hex.replaceFirst('#', '');
+
+        if (cleanHex.length == 6) {
+          buffer.write('ff');
+        }
+
+        buffer.write(cleanHex);
+
+        return Color(int.parse(buffer.toString(), radix: 16));
+      }).toList();
+    });
   }
 
-  // Persistencia de la colección de colores personalizados
+  // Persistencia de la coleccion de colores personalizados
   Future<void> _saveCustomColors() async {
     final prefs = await SharedPreferences.getInstance();
+
     final List<String> colorStrings = _customColors.map((color) {
       return '#${color.value.toRadixString(16).substring(2).toUpperCase()}';
     }).toList();
+
     await prefs.setStringList(_keySavedColors, colorStrings);
   }
 
-  // Actualización del valor hexadecimal en el campo editable
+  // Actualizacion del valor hexadecimal en el campo editable
   void _updateHexText(Color color) {
-    final String hex = color.value.toRadixString(16).substring(2).toUpperCase();
+    final String hex =
+    color.value.toRadixString(16).substring(2).toUpperCase();
+
     _hexController.text = '#$hex';
   }
 
-  // Procesamiento manual de código hexadecimal ingresado por el usuario
+  // Procesamiento manual de codigo hexadecimal ingresado por el usuario
   void _onHexSubmitted(String val) {
-    String cleanHex = val.trim().replaceAll('#', '');
+    final String cleanHex = val.trim().replaceAll('#', '');
+
     if (cleanHex.length == 6) {
-      final intColor = int.tryParse('FF$cleanHex', radix: 16);
+      final int? intColor = int.tryParse('FF$cleanHex', radix: 16);
+
       if (intColor != null) {
         setState(() {
           _selectedColor = Color(intColor);
+          _clearColor = false;
         });
       }
     }
   }
 
-  // Aplicación inmediata y guardado del color seleccionado
+  // Aplicacion inmediata y guardado del color seleccionado
   void _applyAndSaveColor() {
+    if (_clearColor) {
+      widget.onColorCleared();
+      Navigator.of(context).pop();
+      return;
+    }
+
     if (!_customColors.contains(_selectedColor) &&
         !_defaultColors.contains(_selectedColor)) {
       _customColors.add(_selectedColor);
       _saveCustomColors();
     }
+
     widget.onColorSelected(_selectedColor);
     Navigator.of(context).pop();
   }
@@ -123,29 +151,67 @@ class _ColorPickerPopupState extends State<ColorPickerPopup> {
 
   @override
   Widget build(BuildContext context) {
-    final List<Color> allColors = [..._defaultColors, ..._customColors];
+    final List<Color> allColors = [
+      ..._defaultColors,
+      ..._customColors,
+    ];
 
     return AlertDialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+      ),
       title: const Text(
         'Seleccionar Color',
-        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        style: TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.bold,
+        ),
       ),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Galería de círculos de colores predeterminados y personalizados
+            // Galeria de circulos de colores predeterminados y personalizados
             Wrap(
               spacing: 10,
               runSpacing: 10,
               children: [
+                GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      _clearColor = true;
+                    });
+                  },
+                  child: Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: _clearColor
+                            ? const Color(0xFF5346E0)
+                            : Colors.grey.shade400,
+                        width: _clearColor ? 3.5 : 1.0,
+                      ),
+                    ),
+                    child: const Icon(
+                      Icons.format_color_reset,
+                      color: Colors.red,
+                      size: 21,
+                    ),
+                  ),
+                ),
                 ...allColors.map((color) {
-                  final bool isSelected = _selectedColor.value == color.value;
+                  final bool isSelected =
+                      !_clearColor &&
+                          _selectedColor.value == color.value;
+
                   return GestureDetector(
                     onTap: () {
                       setState(() {
                         _selectedColor = color;
+                        _clearColor = false;
                         _updateHexText(color);
                       });
                     },
@@ -165,7 +231,7 @@ class _ColorPickerPopupState extends State<ColorPickerPopup> {
                     ),
                   );
                 }),
-                // Botón para agregar un nuevo color personalizado
+                // Boton para agregar un nuevo color personalizado
                 GestureDetector(
                   onTap: () {
                     setState(() {
@@ -178,7 +244,9 @@ class _ColorPickerPopupState extends State<ColorPickerPopup> {
                     decoration: BoxDecoration(
                       color: Colors.grey.shade200,
                       shape: BoxShape.circle,
-                      border: Border.all(color: Colors.grey.shade400),
+                      border: Border.all(
+                        color: Colors.grey.shade400,
+                      ),
                     ),
                     child: Icon(
                       _showAdvancedPicker ? Icons.remove : Icons.add,
@@ -192,12 +260,14 @@ class _ColorPickerPopupState extends State<ColorPickerPopup> {
               const SizedBox(height: 16),
               const Divider(),
               const SizedBox(height: 8),
-              // Lienzo bidimensional de selección de color y barra de luminosidad
+
+              // Lienzo bidimensional de seleccion de color y barra de luminosidad
               ColorPicker(
                 pickerColor: _selectedColor,
                 onColorChanged: (color) {
                   setState(() {
                     _selectedColor = color;
+                    _clearColor = false;
                     _updateHexText(color);
                   });
                 },
@@ -210,7 +280,8 @@ class _ColorPickerPopupState extends State<ColorPickerPopup> {
                 pickerAreaBorderRadius: BorderRadius.circular(12),
               ),
               const SizedBox(height: 12),
-              // Campo para código hexadecimal del color seleccionado
+
+              // Campo para codigo hexadecimal del color seleccionado
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -244,7 +315,10 @@ class _ColorPickerPopupState extends State<ColorPickerPopup> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancelar', style: TextStyle(color: Colors.grey)),
+          child: const Text(
+            'Cancelar',
+            style: TextStyle(color: Colors.grey),
+          ),
         ),
         ElevatedButton(
           onPressed: _applyAndSaveColor,
@@ -254,9 +328,9 @@ class _ColorPickerPopupState extends State<ColorPickerPopup> {
               borderRadius: BorderRadius.circular(12),
             ),
           ),
-          child: const Text(
-            'Establecer color',
-            style: TextStyle(color: Colors.white),
+          child: Text(
+            _clearColor ? 'Quitar formato' : 'Establecer color',
+            style: const TextStyle(color: Colors.white),
           ),
         ),
       ],

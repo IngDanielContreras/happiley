@@ -51,7 +51,7 @@ class MainScreenState extends State<MainScreen> {
     super.dispose();
   }
 
-  // Cambio de la pestaña activa en la barra de navegacion inferior
+  // Cambio de la pestana activa en la barra de navegacion inferior
   void changeTab(int index) {
     if (index < 0 || index > 3) return;
 
@@ -136,9 +136,14 @@ class MainScreenState extends State<MainScreen> {
     setState(() {
       exploreKeyCounter++;
       selectedArticle = null;
+      currentIndex = 1;
     });
 
-    changeTab(1);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !pageController.hasClients) return;
+
+      pageController.jumpToPage(1);
+    });
   }
 
   void _handlePopInvoked(bool didPop, dynamic result) {

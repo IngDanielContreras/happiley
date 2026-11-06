@@ -17,10 +17,11 @@ class RichTextToolbar extends StatefulWidget {
 class _RichTextToolbarState extends State<RichTextToolbar> {
   double _fontSize = 14.0;
   bool _showFontSizeInput = false;
+
   final TextEditingController _fontSizeTextController =
   TextEditingController(text: '14');
 
-  static const Color _defaultTextColor = Color(0xFF657080);
+  static const Color _defaultTextColor = Color(0xFF616161);
 
   @override
   void initState() {
@@ -64,11 +65,14 @@ class _RichTextToolbarState extends State<RichTextToolbar> {
       }
     }
 
-    if (newSize != _fontSize) {
+    if (newSize != _fontSize ||
+        _fontSizeTextController.text != newSize.toInt().toString()) {
       setState(() {
         _fontSize = newSize;
         _fontSizeTextController.text = newSize.toInt().toString();
       });
+    } else {
+      setState(() {});
     }
   }
 
@@ -90,7 +94,13 @@ class _RichTextToolbarState extends State<RichTextToolbar> {
   // Verificacion del estado activo del formato en el texto seleccionado
   bool _isAttributeActive(Attribute<dynamic> attribute) {
     final style = widget.controller.getSelectionStyle();
-    return style.containsKey(attribute.key);
+    final currentAttribute = style.attributes[attribute.key];
+
+    if (currentAttribute == null) {
+      return false;
+    }
+
+    return currentAttribute.value == attribute.value;
   }
 
   // Verificacion de la alineacion activa en el parrafo seleccionado
@@ -99,7 +109,7 @@ class _RichTextToolbarState extends State<RichTextToolbar> {
     final attr = style.attributes[Attribute.align.key];
 
     if (attr == null) {
-      return attribute.value == null;
+      return attribute.value == Attribute.leftAlignment.value;
     }
 
     return attr.value == attribute.value;
@@ -117,13 +127,38 @@ class _RichTextToolbarState extends State<RichTextToolbar> {
       widget.controller.formatSelection(attribute);
     }
 
-    setState(() {});
+    _onControllerSelectionChanged();
+  }
+
+  // Alternancia exclusiva de listas numeradas y vinetas
+  void _toggleList(Attribute<dynamic> attribute) {
+    final style = widget.controller.getSelectionStyle();
+    final currentList = style.attributes[Attribute.list.key];
+
+    final bool isActive =
+        currentList != null && currentList.value == attribute.value;
+
+    if (isActive) {
+      widget.controller.formatSelection(
+        Attribute.clone(attribute, null) as Attribute<dynamic>,
+      );
+    } else {
+      if (currentList != null) {
+        widget.controller.formatSelection(
+          Attribute.clone(currentList, null) as Attribute<dynamic>,
+        );
+      }
+
+      widget.controller.formatSelection(attribute);
+    }
+
+    _onControllerSelectionChanged();
   }
 
   // Alternancia de alineaciones de parrafo en la seleccion actual
   void _toggleAlignment(Attribute<dynamic> attribute) {
     widget.controller.formatSelection(attribute);
-    setState(() {});
+    _onControllerSelectionChanged();
   }
 
   // Restablecimiento de estilos tipograficos conservando la estructura de parrafos y listas
@@ -214,7 +249,17 @@ class _RichTextToolbarState extends State<RichTextToolbar> {
         as Attribute<dynamic>;
 
         widget.controller.formatSelection(attribute);
-        setState(() {});
+        _onControllerSelectionChanged();
+      },
+      onColorCleared: () {
+        final Attribute<dynamic> attribute = isBackground
+            ? Attribute.clone(Attribute.background, null)
+        as Attribute<dynamic>
+            : Attribute.clone(Attribute.color, null)
+        as Attribute<dynamic>;
+
+        widget.controller.formatSelection(attribute);
+        _onControllerSelectionChanged();
       },
     );
   }
@@ -239,7 +284,9 @@ class _RichTextToolbarState extends State<RichTextToolbar> {
             child: Icon(
               icon,
               size: 20,
-              color: isActive ? const Color(0xFF5346E0) : Colors.black87,
+              color: isActive
+                  ? const Color(0xFF5346E0)
+                  : Colors.black87,
             ),
           ),
         ),
@@ -255,7 +302,9 @@ class _RichTextToolbarState extends State<RichTextToolbar> {
     return Container(
       decoration: BoxDecoration(
         color: const Color(0xFFF4F6FB),
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+        borderRadius: const BorderRadius.vertical(
+          top: Radius.circular(12),
+        ),
         border: Border.all(color: Colors.grey.shade300),
       ),
       child: Column(
@@ -263,7 +312,10 @@ class _RichTextToolbarState extends State<RichTextToolbar> {
         children: [
           // Cinta de opciones horizontal principal
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 8,
+              vertical: 4,
+            ),
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: Row(
@@ -280,6 +332,7 @@ class _RichTextToolbarState extends State<RichTextToolbar> {
                     },
                   ),
                   const VerticalDivider(width: 16),
+
                   // Botones de estilo tipografico
                   _buildToolbarButton(
                     icon: Icons.format_bold,
@@ -297,7 +350,8 @@ class _RichTextToolbarState extends State<RichTextToolbar> {
                     icon: Icons.format_underlined,
                     tooltip: 'Subrayado',
                     isActive: _isAttributeActive(Attribute.underline),
-                    onPressed: () => _toggleAttribute(Attribute.underline),
+                    onPressed: () =>
+                        _toggleAttribute(Attribute.underline),
                   ),
                   _buildToolbarButton(
                     icon: Icons.strikethrough_s,
@@ -307,6 +361,7 @@ class _RichTextToolbarState extends State<RichTextToolbar> {
                         _toggleAttribute(Attribute.strikeThrough),
                   ),
                   const VerticalDivider(width: 16),
+
                   // Botones para eleccion de color de letra y resaltado de texto
                   _buildToolbarButton(
                     icon: Icons.format_color_text,
@@ -321,6 +376,7 @@ class _RichTextToolbarState extends State<RichTextToolbar> {
                     onPressed: () => _openColorPicker(true),
                   ),
                   const VerticalDivider(width: 16),
+
                   // Botones de alineacion de parrafos
                   _buildToolbarButton(
                     icon: Icons.format_align_left,
@@ -351,20 +407,22 @@ class _RichTextToolbarState extends State<RichTextToolbar> {
                         _toggleAlignment(Attribute.justifyAlignment),
                   ),
                   const VerticalDivider(width: 16),
+
                   // Botones para listas numeradas y vinetas
                   _buildToolbarButton(
                     icon: Icons.format_list_bulleted,
                     tooltip: 'Viñetas',
                     isActive: _isAttributeActive(Attribute.ul),
-                    onPressed: () => _toggleAttribute(Attribute.ul),
+                    onPressed: () => _toggleList(Attribute.ul),
                   ),
                   _buildToolbarButton(
                     icon: Icons.format_list_numbered,
                     tooltip: 'Numeración',
                     isActive: _isAttributeActive(Attribute.ol),
-                    onPressed: () => _toggleAttribute(Attribute.ol),
+                    onPressed: () => _toggleList(Attribute.ol),
                   ),
                   const VerticalDivider(width: 16),
+
                   // Botones del historial de operaciones Deshacer y Rehacer
                   Tooltip(
                     message: 'Deshacer',
@@ -377,7 +435,7 @@ class _RichTextToolbarState extends State<RichTextToolbar> {
                       onPressed: canUndo
                           ? () {
                         widget.controller.undo();
-                        setState(() {});
+                        _onControllerSelectionChanged();
                       }
                           : null,
                     ),
@@ -393,12 +451,13 @@ class _RichTextToolbarState extends State<RichTextToolbar> {
                       onPressed: canRedo
                           ? () {
                         widget.controller.redo();
-                        setState(() {});
+                        _onControllerSelectionChanged();
                       }
                           : null,
                     ),
                   ),
                   const VerticalDivider(width: 16),
+
                   // Boton para restablecer el formato tipografico a texto plano conservando la estructura
                   _buildToolbarButton(
                     icon: Icons.format_clear,
@@ -414,7 +473,10 @@ class _RichTextToolbarState extends State<RichTextToolbar> {
           // Campo numerico desplegable para ingresar tamano de fuente (Maximo 50)
           if (_showFontSizeInput)
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 8,
+              ),
               decoration: BoxDecoration(
                 color: Colors.white,
                 border: Border(
@@ -462,7 +524,8 @@ class _RichTextToolbarState extends State<RichTextToolbar> {
                       const SizedBox(width: 6),
                       ElevatedButton(
                         onPressed: () {
-                          final double? parsed = double.tryParse(
+                          final double? parsed =
+                          double.tryParse(
                             _fontSizeTextController.text,
                           );
 
@@ -496,10 +559,12 @@ class _RichTextToolbarState extends State<RichTextToolbar> {
                         child: SliderTheme(
                           data: SliderTheme.of(context).copyWith(
                             trackHeight: 3.0,
-                            thumbShape: const RoundSliderThumbShape(
+                            thumbShape:
+                            const RoundSliderThumbShape(
                               enabledThumbRadius: 6.0,
                             ),
-                            overlayShape: const RoundSliderOverlayShape(
+                            overlayShape:
+                            const RoundSliderOverlayShape(
                               overlayRadius: 12.0,
                             ),
                           ),
@@ -537,7 +602,8 @@ class _RichTextToolbarState extends State<RichTextToolbar> {
                               decoration: InputDecoration(
                                 contentPadding: EdgeInsets.zero,
                                 border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(6),
+                                  borderRadius:
+                                  BorderRadius.circular(6),
                                 ),
                               ),
                               onSubmitted: (val) {
@@ -553,7 +619,8 @@ class _RichTextToolbarState extends State<RichTextToolbar> {
                           const SizedBox(width: 8),
                           ElevatedButton(
                             onPressed: () {
-                              final double? parsed = double.tryParse(
+                              final double? parsed =
+                              double.tryParse(
                                 _fontSizeTextController.text,
                               );
 
@@ -562,7 +629,8 @@ class _RichTextToolbarState extends State<RichTextToolbar> {
                               }
                             },
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF5346E0),
+                              backgroundColor:
+                              const Color(0xFF5346E0),
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 10,
                                 vertical: 6,
@@ -571,7 +639,8 @@ class _RichTextToolbarState extends State<RichTextToolbar> {
                               tapTargetSize:
                               MaterialTapTargetSize.shrinkWrap,
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(6),
+                                borderRadius:
+                                BorderRadius.circular(6),
                               ),
                             ),
                             child: const Text(
@@ -590,10 +659,12 @@ class _RichTextToolbarState extends State<RichTextToolbar> {
                         child: SliderTheme(
                           data: SliderTheme.of(context).copyWith(
                             trackHeight: 3.0,
-                            thumbShape: const RoundSliderThumbShape(
+                            thumbShape:
+                            const RoundSliderThumbShape(
                               enabledThumbRadius: 6.0,
                             ),
-                            overlayShape: const RoundSliderOverlayShape(
+                            overlayShape:
+                            const RoundSliderOverlayShape(
                               overlayRadius: 12.0,
                             ),
                           ),

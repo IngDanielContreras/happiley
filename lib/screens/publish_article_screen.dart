@@ -42,6 +42,8 @@ class _PublishArticleScreenState extends State<PublishArticleScreen> {
 
   // Controlador de texto enriquecido para la descripcion del articulo
   late QuillController _quillController;
+  late FocusNode _descriptionFocusNode;
+  late ScrollController _descriptionScrollController;
 
   // Previsualizacion de precio formateado en tiempo real
   String _formattedPricePreview = '';
@@ -52,7 +54,10 @@ class _PublishArticleScreenState extends State<PublishArticleScreen> {
   @override
   void initState() {
     super.initState();
+
     _quillController = QuillController.basic();
+    _descriptionFocusNode = FocusNode();
+    _descriptionScrollController = ScrollController();
   }
 
   @override
@@ -60,6 +65,8 @@ class _PublishArticleScreenState extends State<PublishArticleScreen> {
     _prefixController.dispose();
     _nameController.dispose();
     _quillController.dispose();
+    _descriptionFocusNode.dispose();
+    _descriptionScrollController.dispose();
     _salePriceController.dispose();
     _stockController.dispose();
     _reorderController.dispose();
@@ -229,6 +236,7 @@ class _PublishArticleScreenState extends State<PublishArticleScreen> {
     _reorderController.clear();
     _supportEndDateController.clear();
 
+    _descriptionFocusNode.unfocus();
     FocusScope.of(context).unfocus();
 
     setState(() {
@@ -747,13 +755,38 @@ class _PublishArticleScreenState extends State<PublishArticleScreen> {
                             padding: const EdgeInsets.all(12),
                             child: QuillEditor.basic(
                               controller: _quillController,
+                              focusNode: _descriptionFocusNode,
+                              scrollController: _descriptionScrollController,
                               config: QuillEditorConfig(
+                                autoFocus: false,
+                                expands: false,
+                                onTapOutsideEnabled: false,
                                 placeholder:
-                                'Ej. Teclado gamer con retroiluminación RGB, switches azules táctiles y cable mallado de un metro con ocho.',
+                                'Escribe aquí las características y especificaciones del artículo.',
                                 customStyles: DefaultStyles(
                                   paragraph: DefaultTextBlockStyle(
                                     const TextStyle(
                                       color: Color(0xFF616161),
+                                      fontSize: 14,
+                                    ),
+                                    const HorizontalSpacing(0, 0),
+                                    const VerticalSpacing(0, 0),
+                                    const VerticalSpacing(0, 0),
+                                    null,
+                                  ),
+                                  align: DefaultTextBlockStyle(
+                                    const TextStyle(
+                                      color: Color(0xFF616161),
+                                      fontSize: 14,
+                                    ),
+                                    const HorizontalSpacing(0, 0),
+                                    const VerticalSpacing(0, 0),
+                                    const VerticalSpacing(0, 0),
+                                    null,
+                                  ),
+                                  placeHolder: DefaultTextBlockStyle(
+                                    const TextStyle(
+                                      color: Color(0xFF9E9E9E),
                                       fontSize: 14,
                                     ),
                                     const HorizontalSpacing(0, 0),
