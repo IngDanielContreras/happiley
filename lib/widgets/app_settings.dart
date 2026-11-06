@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../services/music_manager.dart';
+import '../services/theme_manager.dart';
 
+// Componente modular de configuracion y opciones generales de la aplicacion
 class AppSettings extends StatelessWidget {
   const AppSettings({super.key});
 
@@ -25,6 +27,7 @@ class AppSettings extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final musicManager = MusicManager();
+    final themeManager = ThemeManager();
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -39,7 +42,6 @@ class AppSettings extends StatelessWidget {
               style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
-                color: Color(0xFF101522),
               ),
             ),
             IconButton(
@@ -56,7 +58,7 @@ class AppSettings extends StatelessWidget {
           style: TextStyle(
             fontSize: 15,
             fontWeight: FontWeight.w600,
-            color: Color(0xFF2D2DA8),
+            color: Color(0xFF5548F5),
           ),
         ),
         const SizedBox(height: 8),
@@ -81,11 +83,7 @@ class AppSettings extends StatelessWidget {
                         size: 26,
                       ),
                       onPressed: () {
-                        if (isMuted) {
-                          musicManager.setVolume(1.0);
-                        } else {
-                          musicManager.setVolume(0.0);
-                        }
+                        musicManager.toggleMusic();
                       },
                     ),
                     const SizedBox(width: 8),
@@ -108,7 +106,6 @@ class AppSettings extends StatelessWidget {
                         textAlign: TextAlign.end,
                         style: const TextStyle(
                           fontWeight: FontWeight.bold,
-                          color: Color(0xFF101522),
                         ),
                       ),
                     ),
@@ -117,6 +114,41 @@ class AppSettings extends StatelessWidget {
               ],
             );
           },
+        ),
+        const SizedBox(height: 16),
+        const Divider(),
+        const SizedBox(height: 10),
+        // Etiqueta y boton para cambiar el tema de la aplicacion (Luna / Sol)
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'Tema de la aplicación',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF5548F5),
+              ),
+            ),
+            ValueListenableBuilder<ThemeMode>(
+              valueListenable: themeManager.themeModeNotifier,
+              builder: (context, currentMode, child) {
+                final isDark = currentMode == ThemeMode.dark;
+
+                return IconButton(
+                  tooltip: isDark ? 'Cambiar a Modo Claro' : 'Cambiar a Modo Oscuro',
+                  icon: Icon(
+                    isDark ? Icons.light_mode : Icons.dark_mode,
+                    color: const Color(0xFF5548F5),
+                    size: 28,
+                  ),
+                  onPressed: () {
+                    themeManager.toggleTheme();
+                  },
+                );
+              },
+            ),
+          ],
         ),
       ],
     );

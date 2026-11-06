@@ -53,25 +53,37 @@ class ArticleCard extends StatelessWidget {
   }
 
   Future<void> _handleCartIconPressed(BuildContext context) async {
-    if (CartManager.isSelected(article)) {
-      CartManager.toggleProduct(article);
-      return;
-    }
+    final bool isSelected = CartManager.isSelected(article);
 
     CartManager.toggleProduct(article);
 
-    await LoadingDialog.show(
-      context,
-      title: 'Artículo Agregado',
-      subtitle: 'Su artículo ha sido agregado correctamente.',
-      autoDismiss: true,
-      duration: const Duration(seconds: 3),
-      customIcon: const Icon(
-        Icons.check_circle_rounded,
-        color: Color(0xFF4CAF50),
-        size: 64,
-      ),
-    );
+    if (isSelected) {
+      await LoadingDialog.show(
+        context,
+        title: '¡Artículo Eliminado!',
+        subtitle: 'El artículo ha sido eliminado del carrito.',
+        autoDismiss: true,
+        duration: const Duration(seconds: 2),
+        customIcon: const Icon(
+          Icons.remove_shopping_cart_rounded,
+          color: Color(0xFFE53935),
+          size: 64,
+        ),
+      );
+    } else {
+      await LoadingDialog.show(
+        context,
+        title: '¡Artículo Agregado!',
+        subtitle: 'El artículo se ha añadido a tu carrito de compras.',
+        autoDismiss: true,
+        duration: const Duration(seconds: 2),
+        customIcon: const Icon(
+          Icons.check_circle_rounded,
+          color: Color(0xFF4CAF50),
+          size: 64,
+        ),
+      );
+    }
   }
 
   @override

@@ -1,16 +1,8 @@
 import 'package:flutter/material.dart';
-import '../services/session_manager.dart';
-import '../services/cart_manager.dart';
+import 'services/theme_manager.dart';
 import 'screens/main_screen.dart';
 
-void main() async {
-  // Asegura la inicializacion de los bindings de Flutter
-  WidgetsFlutterBinding.ensureInitialized();
-
-  // Carga previa de la sesion guardada en la base de datos
-  await SessionManager.loadSavedSession();
-  await CartManager.loadSavedCart();
-
+void main() {
   runApp(const MyApp());
 }
 
@@ -19,17 +11,40 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'Happiley',
-      theme: ThemeData(
-        useMaterial3: true,
-        scaffoldBackgroundColor: Colors.white,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF5548F5),
-        ),
-      ),
-      home: const MainScreen(),
+    final themeManager = ThemeManager();
+
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: themeManager.themeModeNotifier,
+      builder: (context, currentMode, child) {
+        return MaterialApp(
+          title: 'Happiley',
+          debugShowCheckedModeBanner: false,
+          themeMode: currentMode,
+          // Definicion del tema claro principal de la aplicacion
+          theme: ThemeData(
+            useMaterial3: true,
+            brightness: Brightness.light,
+            primaryColor: const Color(0xFF5548F5),
+            scaffoldBackgroundColor: const Color(0xFFF8F9FA),
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: const Color(0xFF5548F5),
+              brightness: Brightness.light,
+            ),
+          ),
+          // Definicion del tema oscuro para soporte en toda la interfaz
+          darkTheme: ThemeData(
+            useMaterial3: true,
+            brightness: Brightness.dark,
+            primaryColor: const Color(0xFF5548F5),
+            scaffoldBackgroundColor: const Color(0xFF121212),
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: const Color(0xFF5548F5),
+              brightness: Brightness.dark,
+            ),
+          ),
+          home: const MainScreen(),
+        );
+      },
     );
   }
 }

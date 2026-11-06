@@ -5,6 +5,7 @@ import '../models/article.dart';
 import '../widgets/article_card.dart';
 import '../services/cart_manager.dart';
 import '../widgets/custom_app_bar.dart';
+import '../widgets/loading_dialog.dart';
 
 class ExploreScreen extends StatefulWidget {
   final VoidCallback onCartPressed;
@@ -69,6 +70,41 @@ class _ExploreScreenState extends State<ExploreScreen>
           content: Text(
             'No se pudieron cargar los artículos: $e',
           ),
+        ),
+      );
+    }
+  }
+
+  // Despliegue de dialogo modal interactivo de carga para confirmacion de seleccion
+  Future<void> _handleCartToggle(Article article) async {
+    final bool isSelected = CartManager.isSelected(article);
+
+    CartManager.toggleProduct(article);
+
+    if (isSelected) {
+      await LoadingDialog.show(
+        context,
+        title: '¡Artículo Eliminado!',
+        subtitle: 'El artículo ha sido eliminado del carrito.',
+        autoDismiss: true,
+        duration: const Duration(seconds: 2),
+        customIcon: const Icon(
+          Icons.remove_shopping_cart_rounded,
+          color: Color(0xFFE53935),
+          size: 64,
+        ),
+      );
+    } else {
+      await LoadingDialog.show(
+        context,
+        title: '¡Artículo Agregado!',
+        subtitle: 'El artículo se ha añadido a tu carrito de compras.',
+        autoDismiss: true,
+        duration: const Duration(seconds: 2),
+        customIcon: const Icon(
+          Icons.check_circle_rounded,
+          color: Color(0xFF4CAF50),
+          size: 64,
         ),
       );
     }
@@ -295,15 +331,7 @@ class _ExploreScreenState extends State<ExploreScreen>
                                       FocusScope.of(context)
                                           .unfocus();
 
-                                      if (!CartManager
-                                          .isSelected(article)) {
-                                        CartManager
-                                            .toggleProduct(
-                                          article,
-                                        );
-                                      }
-
-                                      widget.onCartPressed();
+                                      _handleCartToggle(article);
                                     },
                                   );
                                 },

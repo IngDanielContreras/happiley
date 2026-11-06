@@ -15,7 +15,7 @@ class MusicManager with WidgetsBindingObserver {
   // Controladores del reproductor y estado visual del botón
   final AudioPlayer _audioPlayer = AudioPlayer();
   final ValueNotifier<bool> isPlayingNotifier = ValueNotifier<bool>(false);
-  final ValueNotifier<double> volumeNotifier = ValueNotifier<double>(1.0);
+  final ValueNotifier<double> volumeNotifier = ValueNotifier<double>(0.0);
   bool _isInitialized = false;
   bool _isToggling = false;
   bool _wasPlayingBeforePause = false;
@@ -35,7 +35,7 @@ class MusicManager with WidgetsBindingObserver {
         _wasPlayingBeforePause = false;
       }
     } else if (state == AppLifecycleState.resumed) {
-      if (_wasPlayingBeforePause) {
+      if (_wasPlayingBeforePause && volumeNotifier.value > 0) {
         _audioPlayer.resume();
       }
     }
@@ -46,6 +46,38 @@ class MusicManager with WidgetsBindingObserver {
     final clampedVolume = volume.clamp(0.0, 1.0);
     volumeNotifier.value = clampedVolume;
     await _audioPlayer.setVolume(clampedVolume);
+
+    if (clampedVolume > 0 && !isPlayingNotifier.value) {
+      await _startOrResume();
+    } else if (clampedVolume == 0 && isPlayingNotifier.value) {
+      await _audioPlayer.pause();
+      isPlayingNotifier.value = false;
+    }
+  }
+
+  // Inicio de la reproducción o reanudación del reproductor
+  Future<void> _startOrResume() async {
+    try {
+      if (!_isInitialized) {
+        final audioData = await rootBundle.load(_audioAssetPath);
+        final audioBytes = audioData.buffer.asUint8List(
+          audioData.offsetInBytes,
+          audioData.lengthInBytes,
+        );
+
+        await _audioPlayer.setReleaseMode(ReleaseMode.loop);
+        await _audioPlayer.setVolume(volumeNotifier.value);
+        await _audioPlayer.play(BytesSource(audioBytes));
+        _isInitialized = true;
+      } else {
+        await _audioPlayer.resume();
+      }
+      isPlayingNotifier.value = true;
+    } catch (e) {
+      debugPrint('Error al activar la música de fondo: $e');
+      isPlayingNotifier.value = false;
+      _isInitialized = false;
+    }
   }
 
   // Gestión de reproducción, pausa e inicialización en bucle
@@ -58,27 +90,11 @@ class MusicManager with WidgetsBindingObserver {
       if (isPlayingNotifier.value) {
         // Pausa del audio para liberar recursos sin perder la posición
         await _audioPlayer.pause();
+        await setVolume(0.0);
         isPlayingNotifier.value = false;
       } else {
-        if (!_isInitialized) {
-          // Carga del archivo binario y configuración de repetición continua
-          final audioData = await rootBundle.load(_audioAssetPath);
-
-          final audioBytes = audioData.buffer.asUint8List(
-            audioData.offsetInBytes,
-            audioData.lengthInBytes,
-          );
-
-          await _audioPlayer.setReleaseMode(ReleaseMode.loop);
-          await _audioPlayer.setVolume(volumeNotifier.value);
-          await _audioPlayer.play(BytesSource(audioBytes));
-          _isInitialized = true;
-        } else {
-          // Reanudación inmediata del sonido desde el segundo pausado
-          await _audioPlayer.resume();
-        }
-
-        isPlayingNotifier.value = true;
+        final targetVolume = volumeNotifier.value > 0 ? volumeNotifier.value : 1.0;
+        await setVolume(targetVolume);
       }
     } catch (e) {
       debugPrint('Error en la reproducción de la música de fondo: $e');

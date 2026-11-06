@@ -4,6 +4,7 @@ import '../models/article.dart';
 import '../services/cart_manager.dart';
 import '../widgets/custom_app_bar.dart';
 import '../widgets/article_description_viewer.dart';
+import '../widgets/loading_dialog.dart';
 import 'image_viewer_screen.dart';
 
 class ArticleDetailScreen extends StatefulWidget {
@@ -33,36 +34,11 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
   @override
   void initState() {
     super.initState();
-
-    _initialIndex = widget.articlesList.indexWhere(
-          (a) => a.id == widget.article.id,
-    );
-
+    _initialIndex = widget.articlesList.indexWhere((a) => a.id == widget.article.id);
     if (_initialIndex == -1) {
       _initialIndex = 0;
     }
-
     _pageController = PageController(initialPage: _initialIndex);
-  }
-
-  @override
-  void didUpdateWidget(covariant ArticleDetailScreen oldWidget) {
-    super.didUpdateWidget(oldWidget);
-
-    if (oldWidget.articlesList != widget.articlesList &&
-        widget.articlesList.isNotEmpty) {
-      final newIndex = widget.articlesList.indexWhere(
-            (a) => a.id == widget.article.id,
-      );
-
-      if (newIndex != -1 && _pageController.hasClients) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted && _pageController.hasClients) {
-            _pageController.jumpToPage(newIndex);
-          }
-        });
-      }
-    }
   }
 
   @override
@@ -86,7 +62,9 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
       physics: const ClampingScrollPhysics(),
       itemCount: widget.articlesList.length,
       onPageChanged: (index) {
-        widget.onArticleChanged?.call(widget.articlesList[index]);
+        if (widget.onArticleChanged != null) {
+          widget.onArticleChanged!(widget.articlesList[index]);
+        }
       },
       itemBuilder: (context, index) {
         return ArticleDetailContent(
@@ -111,6 +89,7 @@ class ArticleDetailContent extends StatelessWidget {
     required this.onBuyNow,
   });
 
+  // Formato del precio en pesos colombianos (COP)
   String formatPrice(double price) {
     return '\$${price.toStringAsFixed(0).replaceAllMapped(
       RegExp(r'(\d)(?=(\d{3})+$)'),
@@ -118,12 +97,48 @@ class ArticleDetailContent extends StatelessWidget {
     )} COP';
   }
 
+  // Adicion del producto al carrito y activacion de flujo de compra inmediata
   void _buyNow() {
     if (!CartManager.isSelected(article)) {
       CartManager.toggleProduct(article);
     }
 
     onBuyNow();
+  }
+
+  // Despliegue de dialogo modal interactivo de carga para confirmacion de seleccion
+  Future<void> _handleCartToggle(BuildContext context) async {
+    final bool isSelected = CartManager.isSelected(article);
+
+    CartManager.toggleProduct(article);
+
+    if (isSelected) {
+      await LoadingDialog.show(
+        context,
+        title: '¡Artículo Eliminado!',
+        subtitle: 'El artículo ha sido eliminado del carrito.',
+        autoDismiss: true,
+        duration: const Duration(seconds: 2),
+        customIcon: const Icon(
+          Icons.remove_shopping_cart_rounded,
+          color: Color(0xFFE53935),
+          size: 64,
+        ),
+      );
+    } else {
+      await LoadingDialog.show(
+        context,
+        title: '¡Artículo Agregado!',
+        subtitle: 'El artículo se ha añadido a tu carrito de compras.',
+        autoDismiss: true,
+        duration: const Duration(seconds: 2),
+        customIcon: const Icon(
+          Icons.check_circle_rounded,
+          color: Color(0xFF4CAF50),
+          size: 64,
+        ),
+      );
+    }
   }
 
   Widget _buildArticleImage(String? imagePath) {
@@ -138,7 +153,6 @@ class ArticleDetailContent extends StatelessWidget {
     }
 
     final file = File(imagePath);
-
     if (imagePath.startsWith('/') || file.existsSync()) {
       return Image.file(
         file,
@@ -179,6 +193,7 @@ class ArticleDetailContent extends StatelessWidget {
       body: SafeArea(
         child: Column(
           children: [
+            // Contenedor superior con la imagen del articulo y boton de regreso
             Stack(
               children: [
                 Container(
@@ -223,6 +238,8 @@ class ArticleDetailContent extends StatelessWidget {
                 ),
               ],
             ),
+
+            // Seccion detallada con información del articulo (precio, stock y descripcion del producto)
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.all(16),
@@ -230,6 +247,7 @@ class ArticleDetailContent extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // Nombre principal del producto
                       Text(
                         article.name,
                         style: const TextStyle(
@@ -237,7 +255,10 @@ class ArticleDetailContent extends StatelessWidget {
                           fontWeight: FontWeight.bold,
                         ),
                       ),
+
                       const SizedBox(height: 8),
+
+                      // Fila con el precio y el stock disponible
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
@@ -271,9 +292,12 @@ class ArticleDetailContent extends StatelessWidget {
                           ),
                         ],
                       ),
+
                       const SizedBox(height: 16),
                       const Divider(),
                       const SizedBox(height: 8),
+
+                      // Encabezado de la seccion de descripcion del producto
                       const Text(
                         'Descripción del Producto',
                         style: TextStyle(
@@ -281,7 +305,9 @@ class ArticleDetailContent extends StatelessWidget {
                           fontWeight: FontWeight.bold,
                         ),
                       ),
+
                       const SizedBox(height: 6),
+
                       ArticleDescriptionViewer(
                         description: article.description,
                       ),
@@ -290,6 +316,8 @@ class ArticleDetailContent extends StatelessWidget {
                 ),
               ),
             ),
+
+            // Barra inferior con botones de accion para comprar y agregar el articulo al carrito
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -304,6 +332,7 @@ class ArticleDetailContent extends StatelessWidget {
               ),
               child: Row(
                 children: [
+                  // Boton principal para compra inmediata
                   Expanded(
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(
@@ -323,7 +352,10 @@ class ArticleDetailContent extends StatelessWidget {
                       ),
                     ),
                   ),
+
                   const SizedBox(width: 12),
+
+                  // Boton circular para agregar o quitar el articulo del carrito
                   ValueListenableBuilder<List<Article>>(
                     valueListenable: CartManager.selectedArticles,
                     builder: (context, selectedArticles, child) {
@@ -349,9 +381,7 @@ class ArticleDetailContent extends StatelessWidget {
                                 ? Colors.white
                                 : Colors.grey.shade700,
                           ),
-                          onPressed: () {
-                            CartManager.toggleProduct(article);
-                          },
+                          onPressed: () => _handleCartToggle(context),
                         ),
                       );
                     },
