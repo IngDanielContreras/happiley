@@ -110,6 +110,17 @@ class _ExploreScreenState extends State<ExploreScreen>
     }
   }
 
+  Future<void> _handleBuy(Article article) async {
+    if (!CartManager.isSelected(article)) {
+      CartManager.toggleProduct(article);
+    }
+
+    if (!mounted) return;
+
+    FocusScope.of(context).unfocus();
+    widget.onCartPressed();
+  }
+
   // Filtrado de articulos segun los criterios de busqueda ingresados
   void _filterArticles(String query) {
     final cleanQuery = query.toLowerCase().trim();
@@ -278,7 +289,6 @@ class _ExploreScreenState extends State<ExploreScreen>
                 ),
               ),
             ),
-
             Expanded(
               child: filteredArticles.isEmpty
                   ? const Center(
@@ -300,8 +310,7 @@ class _ExploreScreenState extends State<ExploreScreen>
                   children: List.generate(
                     totalPages,
                         (page) {
-                      final pageArticles =
-                      articlesForPage(page);
+                      final pageArticles = articlesForPage(page);
 
                       return CustomScrollView(
                         slivers: [
@@ -327,10 +336,7 @@ class _ExploreScreenState extends State<ExploreScreen>
                                       );
                                     },
                                     onBuy: () {
-                                      FocusScope.of(context)
-                                          .unfocus();
-
-                                      _handleCartToggle(article);
+                                      _handleBuy(article);
                                     },
                                   );
                                 },
@@ -345,7 +351,6 @@ class _ExploreScreenState extends State<ExploreScreen>
                               ),
                             ),
                           ),
-
                           if (totalPages > 1)
                             SliverToBoxAdapter(
                               child: Padding(
@@ -361,7 +366,8 @@ class _ExploreScreenState extends State<ExploreScreen>
                                       vertical: 4,
                                     ),
                                     decoration: BoxDecoration(
-                                      color: Colors.grey.shade100,
+                                      color:
+                                      Colors.grey.shade100,
                                       borderRadius:
                                       BorderRadius.circular(25),
                                       border: Border.all(
@@ -430,7 +436,8 @@ class _ExploreScreenState extends State<ExploreScreen>
         ),
 
         // Boton flotante de acceso rapido al carrito de compras
-        floatingActionButton: ValueListenableBuilder<List<Article>>(
+        floatingActionButton:
+        ValueListenableBuilder<List<Article>>(
           valueListenable: CartManager.selectedArticles,
           builder: (context, articles, _) {
             final count = articles.length;
