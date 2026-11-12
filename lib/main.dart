@@ -1,11 +1,17 @@
 import 'package:flutter/material.dart';
 import 'services/theme_manager.dart';
 import 'services/session_manager.dart';
+import 'services/music_manager.dart';
+import 'services/system_sound_manager.dart';
 import 'screens/main_screen.dart';
 import 'services/cart_manager.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Inicializacion de gestores globales de audio y ciclo de vida
+  MusicManager();
+  SystemSoundManager();
 
   await Future.wait([
     SessionManager.loadSavedSession(),

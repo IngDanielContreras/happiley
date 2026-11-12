@@ -22,6 +22,7 @@ class HomeScreen extends StatelessWidget {
       subtitle: 'Nos vemos pronto.',
       autoDismiss: true,
       duration: const Duration(seconds: 5),
+      isExitDialog: true,
     );
     await Future.delayed(const Duration(seconds: 5));
     SystemNavigator.pop();

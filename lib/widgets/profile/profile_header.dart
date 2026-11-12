@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../models/user.dart';
+import '../../services/system_sound_manager.dart';
 
 class ProfileHeader extends StatelessWidget {
   final User user;
@@ -22,6 +23,8 @@ class ProfileHeader extends StatelessWidget {
 
   // Cuadro de dialogo para confirmar el cierre de sesion
   Future<void> _showLogoutDialog(BuildContext context) async {
+    SystemSoundManager().playDialogOpen();
+
     final confirm = await showDialog<bool>(
       context: context,
       builder: (BuildContext dialogContext) {
@@ -43,6 +46,7 @@ class ProfileHeader extends StatelessWidget {
           actions: [
             TextButton(
               onPressed: () {
+                SystemSoundManager().playDeniedNo();
                 Navigator.of(dialogContext).pop(false);
               },
               child: const Text(
@@ -62,6 +66,7 @@ class ProfileHeader extends StatelessWidget {
                 ),
               ),
               onPressed: () {
+                SystemSoundManager().playAcceptYes();
                 Navigator.of(dialogContext).pop(true);
               },
               child: const Text('Cerrar Sesión'),

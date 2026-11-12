@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../services/system_sound_manager.dart';
 
 class AlertMessage {
   static Future<bool?> show({
@@ -11,6 +12,10 @@ class AlertMessage {
     VoidCallback? onConfirm,
     VoidCallback? onCancel,
   }) {
+
+    // Reproduccion del sonido de presentacion de alerta
+    SystemSoundManager().playDialogOpen();
+
     return showDialog<bool>(
       context: context,
       barrierDismissible: false,
@@ -48,6 +53,7 @@ class AlertMessage {
               // Boton aceptar
               ElevatedButton(
                 onPressed: () {
+                  SystemSoundManager().playAcceptYes();
                   Navigator.of(context).pop(true);
                   if (onConfirm != null) {
                     onConfirm();
@@ -76,6 +82,7 @@ class AlertMessage {
               // Boton cancelar
               ElevatedButton(
                 onPressed: () {
+                  SystemSoundManager().playDeniedNo();
                   Navigator.of(context).pop(false);
                   if (onCancel != null) {
                     onCancel();

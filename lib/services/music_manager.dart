@@ -27,13 +27,20 @@ class MusicManager with WidgetsBindingObserver {
   // Gestion del ciclo de vida de la aplicacion para pausar y reanudar el audio
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.hidden) {
       if (isPlayingNotifier.value) {
         _wasPlayingBeforePause = true;
         _audioPlayer.pause();
       } else {
         _wasPlayingBeforePause = false;
       }
+    } else if (state == AppLifecycleState.detached) {
+      _wasPlayingBeforePause = false;
+      _audioPlayer.stop();
+      isPlayingNotifier.value = false;
+      _isInitialized = false;
     } else if (state == AppLifecycleState.resumed) {
       if (_wasPlayingBeforePause && volumeNotifier.value > 0) {
         _audioPlayer.resume();

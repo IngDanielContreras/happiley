@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../services/system_sound_manager.dart';
 
 class LoadingDialog extends StatefulWidget {
   final String title;
@@ -7,6 +8,7 @@ class LoadingDialog extends StatefulWidget {
   final Widget? customIcon;
   final Duration duration;
   final bool autoDismiss;
+  final bool isExitDialog;
 
   const LoadingDialog({
     super.key,
@@ -15,6 +17,7 @@ class LoadingDialog extends StatefulWidget {
     this.customIcon,
     this.duration = const Duration(seconds: 5),
     this.autoDismiss = false,
+    this.isExitDialog = false,
   });
 
   static Future<void> show(
@@ -24,6 +27,7 @@ class LoadingDialog extends StatefulWidget {
         Widget? customIcon,
         Duration duration = const Duration(seconds: 5),
         bool autoDismiss = false,
+        bool isExitDialog = false,
       }) {
     return showDialog<void>(
       context: context,
@@ -41,6 +45,7 @@ class LoadingDialog extends StatefulWidget {
             customIcon: customIcon,
             duration: duration,
             autoDismiss: autoDismiss,
+            isExitDialog: isExitDialog,
           ),
         );
       },
@@ -57,6 +62,43 @@ class _LoadingDialogState extends State<LoadingDialog>
   late final AnimationController _controller;
   late final Animation<double> _scaleAnimation;
   Timer? _timer;
+  bool _hasTriggeredSounds = false;
+
+  // Ejecucion unica de sonidos sincronizados con el estado visual del dialogo
+  void _triggerDialogSounds() {
+    if (_hasTriggeredSounds) return;
+    _hasTriggeredSounds = true;
+
+    final soundManager = SystemSoundManager();
+    soundManager.playDialogOpen();
+
+    if (widget.isExitDialog) {
+      soundManager.playExit();
+      return;
+    }
+
+    final Widget? iconWidget = widget.customIcon;
+    if (iconWidget is Icon) {
+      final IconData? iconData = iconWidget.icon;
+      if (iconData == Icons.check_circle_rounded ||
+          iconData == Icons.check_circle ||
+          iconData == Icons.check) {
+        soundManager.playSuccess();
+      } else if (iconData == Icons.cancel_rounded ||
+          iconData == Icons.cancel ||
+          iconData == Icons.error_rounded ||
+          iconData == Icons.error ||
+          iconData == Icons.close_rounded ||
+          iconData == Icons.block_rounded ||
+          iconData == Icons.remove_shopping_cart_rounded) {
+        soundManager.playError();
+      } else if (iconData == Icons.warning_amber_rounded ||
+          iconData == Icons.warning_rounded ||
+          iconData == Icons.warning) {
+        soundManager.playAlert();
+      }
+    }
+  }
 
   @override
   void initState() {
@@ -92,6 +134,8 @@ class _LoadingDialogState extends State<LoadingDialog>
         ),
       );
     }
+
+    _triggerDialogSounds();
 
     if (widget.autoDismiss) {
       _timer = Timer(widget.duration, () {
