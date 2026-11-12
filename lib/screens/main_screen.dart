@@ -27,6 +27,10 @@ class MainScreen extends StatefulWidget {
 }
 
 class MainScreenState extends State<MainScreen> {
+  static MainScreenState? of(BuildContext context) {
+    return context.findAncestorStateOfType<MainScreenState>();
+  }
+
   late int currentIndex;
   late PageController pageController;
 
@@ -35,13 +39,16 @@ class MainScreenState extends State<MainScreen> {
 
   int exploreKeyCounter = 0;
   bool _pendingCartRedirect = false;
+  bool _isAuthPromptOpen = false;
+  DateTime? _lastAuthPromptTime;
 
   @override
   void initState() {
     super.initState();
 
     // Validacion inicial de acceso al carrito segun estado de sesion
-    final requestedIndex = widget.initialIndex.clamp(0, 3).toInt();
+    final requestedIndex = widget.initialIndex.clamp(0, 3);
+
     if (requestedIndex == 2 && !SessionManager.isLoggedIn) {
       currentIndex = 3;
       _pendingCartRedirect = true;
@@ -61,20 +68,44 @@ class MainScreenState extends State<MainScreen> {
   }
 
   // Despliegue de alerta de autenticacion requerida para acceder al carrito
-  void _promptAuthenticationForCart() {
+  void promptAuthentication({bool redirectToCartAfterLogin = true}) {
+    if (_isAuthPromptOpen || !mounted) return;
+
+    final now = DateTime.now();
+
+    if (_lastAuthPromptTime != null &&
+        now.difference(_lastAuthPromptTime!) <
+            const Duration(milliseconds: 600)) {
+      return;
+    }
+
+    _isAuthPromptOpen = true;
+    _lastAuthPromptTime = now;
+
     AlertMessage.show(
       context: context,
       title: 'Inicio de Sesión Requerido',
-      message:
-      'Debes iniciar sesión para acceder al carrito de compras y realizar pedidos.',
+      message: 'Debes iniciar sesión para realizar esta acción.',
       confirmText: 'Iniciar Sesión',
       cancelText: 'Cancelar',
       isConfirmDefault: true,
       onConfirm: () {
-        _pendingCartRedirect = true;
+        _isAuthPromptOpen = false;
+        _lastAuthPromptTime = DateTime.now();
+
+        if (redirectToCartAfterLogin) {
+          _pendingCartRedirect = true;
+        }
+
         changeTab(3);
       },
-    );
+      onCancel: () {
+        _isAuthPromptOpen = false;
+        _lastAuthPromptTime = DateTime.now();
+      },
+    ).then((_) {
+      _isAuthPromptOpen = false;
+    });
   }
 
   // Cambio de la pestana activa en la barra de navegacion inferior
@@ -87,7 +118,8 @@ class MainScreenState extends State<MainScreen> {
           pageController.page?.round() != currentIndex) {
         pageController.jumpToPage(currentIndex);
       }
-      _promptAuthenticationForCart();
+
+      promptAuthentication(redirectToCartAfterLogin: true);
       return;
     }
 
@@ -111,7 +143,8 @@ class MainScreenState extends State<MainScreen> {
       if (pageController.hasClients) {
         pageController.jumpToPage(currentIndex);
       }
-      _promptAuthenticationForCart();
+
+      promptAuthentication(redirectToCartAfterLogin: true);
       return;
     }
 
@@ -154,7 +187,7 @@ class MainScreenState extends State<MainScreen> {
   // Transicion directa hacia la pagina del carrito de compras
   void buyNowAndGoToCart() {
     if (!SessionManager.isLoggedIn) {
-      _promptAuthenticationForCart();
+      promptAuthentication(redirectToCartAfterLogin: true);
       return;
     }
 
@@ -296,11 +329,13 @@ class MainScreenState extends State<MainScreen> {
 
           // Renderizado protegido del carrito segun estado de autenticacion
           final Widget protectedCartWidget = isAuthenticated
-              ? const CartScreen(
-            key: ValueKey('cart_screen'),
+              ? CartScreen(
+            key: const ValueKey('cart_screen'),
+            isActive: currentIndex == 2,
           )
               : CartScreen(
             key: const ValueKey('cart_screen_restricted'),
+            isActive: currentIndex == 2,
             onRequestLogin: () {
               _pendingCartRedirect = true;
               changeTab(3);
@@ -314,7 +349,7 @@ class MainScreenState extends State<MainScreen> {
                 PageView(
                   controller: pageController,
                   onPageChanged: _onPageChanged,
-                  physics: selectedArticle != null
+                  physics: selectedArticle != null || !isAuthenticated
                       ? const NeverScrollableScrollPhysics()
                       : const ClampingScrollPhysics(),
                   children: [

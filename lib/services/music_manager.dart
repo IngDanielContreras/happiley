@@ -56,6 +56,9 @@ class MusicManager with WidgetsBindingObserver {
       (volumeNotifier.value * _currentDuckMultiplier).clamp(0.0, 1.0);
 
   void requestDuck() {
+    if (!isPlayingNotifier.value || volumeNotifier.value <= 0) {
+      return;
+    }
     _activeDuckRequests++;
     _animateDuckMultiplier(_duckedTargetMultiplier);
   }
@@ -65,6 +68,11 @@ class MusicManager with WidgetsBindingObserver {
       _activeDuckRequests--;
     }
     if (_activeDuckRequests == 0) {
+      if (!isPlayingNotifier.value || volumeNotifier.value <= 0) {
+        _duckFadeTimer?.cancel();
+        _currentDuckMultiplier = 1.0;
+        return;
+      }
       _animateDuckMultiplier(1.0);
     }
   }

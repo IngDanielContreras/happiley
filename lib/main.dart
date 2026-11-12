@@ -3,6 +3,7 @@ import 'services/theme_manager.dart';
 import 'services/session_manager.dart';
 import 'services/music_manager.dart';
 import 'services/system_sound_manager.dart';
+import 'services/multimedia_manager.dart';
 import 'services/notification_service.dart';
 import 'screens/main_screen.dart';
 import 'services/cart_manager.dart';
@@ -13,6 +14,7 @@ Future<void> main() async {
   // Inicializacion de gestores globales de audio y ciclo de vida
   MusicManager();
   SystemSoundManager();
+  MultimediaManager();
 
   await Future.wait([
     SessionManager.loadSavedSession(),

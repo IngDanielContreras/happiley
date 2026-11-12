@@ -9,14 +9,17 @@ import '../database/purchase_service.dart';
 import '../widgets/cart_item_card.dart';
 import '../widgets/loading_dialog.dart';
 import '../widgets/alert_message.dart';
+import '../widgets/promo_video_player.dart';
 import 'login_screen.dart';
 
 class CartScreen extends StatefulWidget {
   final VoidCallback? onRequestLogin;
+  final bool isActive;
 
   const CartScreen({
     super.key,
     this.onRequestLogin,
+    this.isActive = false,
   });
 
   @override
@@ -322,43 +325,33 @@ class _CartScreenState extends State<CartScreen> {
           return ValueListenableBuilder<List<Article>>(
             valueListenable: CartManager.selectedArticles,
             builder: (context, selectedList, _) {
-              if (selectedList.isEmpty) {
-                return const Center(
-                  child: Text(
-                    'El carrito esta vacio',
-                    style: TextStyle(fontSize: 16),
-                  ),
-                );
-              }
-
               _syncQuantities(selectedList);
 
               return Column(
                 children: [
-                  // Lista animada de articulos agregados al carrito
+                  // Lista superior e items de carrito con el video promocional al inicio
                   Expanded(
-                    child: AnimatedList(
-                      key: ValueKey(selectedList.length),
-                      initialItemCount: selectedList.length,
-                      itemBuilder: (context, index, animation) {
-                        if (index >= selectedList.length) {
+                    child: ListView.builder(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      itemCount: selectedList.length + 1,
+                      itemBuilder: (context, index) {
+                        // El primer elemento es el reproductor de video promocional
+                        if (index == 0) {
+                          return Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                            child: PromoVideoPlayer(
+                              isActive: widget.isActive,
+                            ),
+                          );
+                        }
+
+                        final articleIndex = index - 1;
+                        if (articleIndex >= selectedList.length) {
                           return const SizedBox();
                         }
-                        final article = selectedList[index];
+                        final article = selectedList[articleIndex];
 
-                        return FadeTransition(
-                          opacity: CurvedAnimation(
-                            parent: animation,
-                            curve: Curves.easeInOut,
-                          ),
-                          child: SizeTransition(
-                            sizeFactor: CurvedAnimation(
-                              parent: animation,
-                              curve: Curves.easeInOut,
-                            ),
-                            child: _buildCartTile(article),
-                          ),
-                        );
+                        return _buildCartTile(article);
                       },
                     ),
                   ),
@@ -406,7 +399,9 @@ class _CartScreenState extends State<CartScreen> {
                               foregroundColor: Colors.white,
                               padding: const EdgeInsets.symmetric(vertical: 14),
                             ),
-                            onPressed: () {
+                            onPressed: selectedList.isEmpty
+                                ? null
+                                : () {
                               AlertMessage.show(
                                 context: context,
                                 title: 'Confirmar Compra',

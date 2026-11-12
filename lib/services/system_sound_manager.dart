@@ -15,6 +15,7 @@ enum SystemSoundType {
   success,
   addArticle,
   removeArticle,
+  notification,
 }
 
 class SystemSoundManager with WidgetsBindingObserver {
@@ -30,16 +31,24 @@ class SystemSoundManager with WidgetsBindingObserver {
   // Reproductores independientes para apertura de dialogos y respuestas
   final AudioPlayer _dialogOpenPlayer = AudioPlayer();
   final AudioPlayer _feedbackPlayer = AudioPlayer();
+  final AudioPlayer _notificationPlayer = AudioPlayer();
 
   final ValueNotifier<int> volumePercentNotifier = ValueNotifier<int>(100);
   final Map<SystemSoundType, Uint8List> _soundCache = {};
 
   bool _dialogPlayerDucking = false;
   bool _feedbackPlayerDucking = false;
+  bool _notificationPlayerDucking = false;
+  int _pendingNotificationCount = 0;
+  bool _isPlayingNotificationQueue = false;
+  Completer<void>? _currentNotificationCompleter;
+
   Timer? _dialogSafetyTimer;
   Timer? _feedbackSafetyTimer;
+  Timer? _notificationSafetyTimer;
   StreamSubscription<void>? _dialogCompleteSub;
   StreamSubscription<void>? _feedbackCompleteSub;
+  StreamSubscription<void>? _notificationCompleteSub;
 
   // Rutas fisicas de los archivos de audio del sistema
   static const Map<SystemSoundType, String> _assetPaths = {
@@ -61,6 +70,8 @@ class SystemSoundManager with WidgetsBindingObserver {
     'lib/assets/music/system_sounds/add_article_sound.m4a',
     SystemSoundType.removeArticle:
     'lib/assets/music/system_sounds/remove_article_sound.m4a',
+    SystemSoundType.notification:
+    'lib/assets/music/system_sounds/notification_sound.m4a',
   };
 
   Future<void> _initPlayers() async {
@@ -80,8 +91,10 @@ class SystemSoundManager with WidgetsBindingObserver {
     try {
       await _dialogOpenPlayer.setAudioContext(context);
       await _feedbackPlayer.setAudioContext(context);
+      await _notificationPlayer.setAudioContext(context);
       await _dialogOpenPlayer.setReleaseMode(ReleaseMode.stop);
       await _feedbackPlayer.setReleaseMode(ReleaseMode.stop);
+      await _notificationPlayer.setReleaseMode(ReleaseMode.stop);
     } catch (e) {
       debugPrint('Error al configurar reproductores de sonidos del sistema: $e');
     }
@@ -92,6 +105,14 @@ class SystemSoundManager with WidgetsBindingObserver {
 
     _feedbackCompleteSub = _feedbackPlayer.onPlayerComplete.listen((_) {
       _releaseFeedbackDuck();
+    });
+
+    _notificationCompleteSub = _notificationPlayer.onPlayerComplete.listen((_) {
+      _notificationSafetyTimer?.cancel();
+      if (_currentNotificationCompleter != null &&
+          !_currentNotificationCompleter!.isCompleted) {
+        _currentNotificationCompleter!.complete();
+      }
     });
   }
 
@@ -133,6 +154,21 @@ class SystemSoundManager with WidgetsBindingObserver {
     }
   }
 
+  void _acquireNotificationDuck() {
+    if (!_notificationPlayerDucking) {
+      _notificationPlayerDucking = true;
+      MusicManager().requestDuck();
+    }
+  }
+
+  void _releaseNotificationDuck() {
+    _notificationSafetyTimer?.cancel();
+    if (_notificationPlayerDucking) {
+      _notificationPlayerDucking = false;
+      MusicManager().releaseDuck();
+    }
+  }
+
   double get normalizedVolume =>
       (volumePercentNotifier.value.clamp(0, 100)) / 100.0;
 
@@ -156,6 +192,7 @@ class SystemSoundManager with WidgetsBindingObserver {
     try {
       await _dialogOpenPlayer.setVolume(targetVolume);
       await _feedbackPlayer.setVolume(targetVolume);
+      await _notificationPlayer.setVolume(targetVolume);
 
       if (clampedPercent == 0) {
         await stopAllSystemSounds();
@@ -199,6 +236,11 @@ class SystemSoundManager with WidgetsBindingObserver {
 
   // Ejecucion del sonido aplicando el volumen porcentual configurado
   Future<void> playSound(SystemSoundType type) async {
+    if (type == SystemSoundType.notification) {
+      await playNotification();
+      return;
+    }
+
     final int currentPercent = volumePercentNotifier.value;
     if (currentPercent <= 0) return;
 
@@ -235,6 +277,64 @@ class SystemSoundManager with WidgetsBindingObserver {
     }
   }
 
+  Future<void> playNotification() async {
+    final int currentPercent = volumePercentNotifier.value;
+    if (currentPercent <= 0) return;
+
+    _pendingNotificationCount++;
+    if (_isPlayingNotificationQueue) return;
+
+    _isPlayingNotificationQueue = true;
+
+    try {
+      while (_pendingNotificationCount > 0) {
+        _pendingNotificationCount--;
+
+        final int activePercent = volumePercentNotifier.value;
+        if (activePercent <= 0) {
+          _pendingNotificationCount = 0;
+          break;
+        }
+
+        final Uint8List? bytes =
+        await _loadSoundBytes(SystemSoundType.notification);
+        if (bytes == null) continue;
+
+        _acquireNotificationDuck();
+
+        final completer = Completer<void>();
+        _currentNotificationCompleter = completer;
+
+        _notificationSafetyTimer?.cancel();
+        _notificationSafetyTimer = Timer(const Duration(seconds: 5), () {
+          if (!completer.isCompleted) {
+            completer.complete();
+          }
+        });
+
+        try {
+          if (_notificationPlayer.state == PlayerState.playing ||
+              _notificationPlayer.state == PlayerState.paused) {
+            await _notificationPlayer.stop();
+          }
+          await _notificationPlayer.release();
+          await _notificationPlayer.setReleaseMode(ReleaseMode.stop);
+          await _notificationPlayer.setVolume(activePercent / 100.0);
+          await _notificationPlayer.play(BytesSource(bytes));
+          await completer.future;
+        } catch (e) {
+          debugPrint('Error al reproducir sonido de notificacion: $e');
+        } finally {
+          _notificationSafetyTimer?.cancel();
+          _currentNotificationCompleter = null;
+        }
+      }
+    } finally {
+      _isPlayingNotificationQueue = false;
+      _releaseNotificationDuck();
+    }
+  }
+
   Future<void> playDialogOpen() => playSound(SystemSoundType.dialogOpen);
   Future<void> playDeniedNo() => playSound(SystemSoundType.deniedNo);
   Future<void> playAcceptYes() => playSound(SystemSoundType.acceptYes);
@@ -247,14 +347,22 @@ class SystemSoundManager with WidgetsBindingObserver {
 
   // Detencion de todos los reproductores activos del sistema
   Future<void> stopAllSystemSounds() async {
+    _pendingNotificationCount = 0;
+    if (_currentNotificationCompleter != null &&
+        !_currentNotificationCompleter!.isCompleted) {
+      _currentNotificationCompleter!.complete();
+    }
+
     try {
       await _dialogOpenPlayer.stop();
       await _feedbackPlayer.stop();
+      await _notificationPlayer.stop();
     } catch (e) {
       debugPrint('Error al detener sonidos del sistema: $e');
     } finally {
       _releaseDialogDuck();
       _releaseFeedbackDuck();
+      _releaseNotificationDuck();
     }
   }
 
@@ -263,8 +371,10 @@ class SystemSoundManager with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     await _dialogCompleteSub?.cancel();
     await _feedbackCompleteSub?.cancel();
+    await _notificationCompleteSub?.cancel();
     await stopAllSystemSounds();
     await _dialogOpenPlayer.dispose();
     await _feedbackPlayer.dispose();
+    await _notificationPlayer.dispose();
   }
 }

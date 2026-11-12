@@ -4,6 +4,7 @@ import 'package:sqflite/sqflite.dart';
 import '../database/article_service.dart';
 import '../models/app_notification.dart';
 import 'session_manager.dart';
+import 'system_sound_manager.dart';
 
 class NotificationService {
   static final NotificationService _instance = NotificationService._internal();
@@ -156,6 +157,7 @@ class NotificationService {
 
       await db.insert('notifications', notification.toMap());
       await refreshNotifications();
+      SystemSoundManager().playNotification();
     } catch (e) {
       debugPrint('Error al registrar notificacion: $e');
     }

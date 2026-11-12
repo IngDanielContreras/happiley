@@ -4,9 +4,8 @@ import '../database/article_service.dart';
 import '../models/article.dart';
 import '../widgets/article_card.dart';
 import '../services/cart_manager.dart';
-import '../services/system_sound_manager.dart';
+import '../services/session_manager.dart';
 import '../widgets/custom_app_bar.dart';
-import '../widgets/loading_dialog.dart';
 
 class ExploreScreen extends StatefulWidget {
   final VoidCallback onCartPressed;
@@ -31,7 +30,6 @@ class _ExploreScreenState extends State<ExploreScreen>
   List<Article> articles = [];
   List<Article> filteredArticles = [];
   bool isLoading = true;
-  bool _cartNavigationTriggered = false;
   bool _homeNavigationTriggered = false;
   TabController? tabController;
 
@@ -76,44 +74,13 @@ class _ExploreScreenState extends State<ExploreScreen>
     }
   }
 
-  // Despliegue de dialogo modal interactivo de carga para confirmacion de seleccion
-  Future<void> _handleCartToggle(Article article) async {
-    final bool isSelected = CartManager.isSelected(article);
-
-    CartManager.toggleProduct(article);
-
-    if (isSelected) {
-      await LoadingDialog.show(
-        context,
-        title: '¡Artículo Eliminado!',
-        subtitle: 'El artículo ha sido eliminado del carrito.',
-        autoDismiss: true,
-        duration: const Duration(seconds: 2),
-        customSoundType: SystemSoundType.removeArticle,
-        customIcon: const Icon(
-          Icons.remove_shopping_cart_rounded,
-          color: Color(0xFFE53935),
-          size: 64,
-        ),
-      );
-    } else {
-      await LoadingDialog.show(
-        context,
-        title: '¡Artículo Agregado!',
-        subtitle: 'El artículo se ha añadido a tu carrito de compras.',
-        autoDismiss: true,
-        duration: const Duration(seconds: 2),
-        customSoundType: SystemSoundType.addArticle,
-        customIcon: const Icon(
-          Icons.check_circle_rounded,
-          color: Color(0xFF4CAF50),
-          size: 64,
-        ),
-      );
-    }
-  }
-
   Future<void> _handleBuy(Article article) async {
+    if (!SessionManager.isLoggedIn) {
+      FocusScope.of(context).unfocus();
+      widget.onCartPressed();
+      return;
+    }
+
     if (!CartManager.isSelected(article)) {
       CartManager.toggleProduct(article);
     }
@@ -140,14 +107,13 @@ class _ExploreScreenState extends State<ExploreScreen>
         }).toList();
       }
 
-      _cartNavigationTriggered = false;
       _homeNavigationTriggered = false;
 
       _updatePagination();
     });
   }
 
-  // Actualizacion de la paginacion y controlador de pestañas (en la visualizacion de articulos)
+  // Actualizacion de la paginacion y controlador de pestanas (en la visualizacion de articulos)
   void _updatePagination() {
     final pageCount = max(
       1,
@@ -188,7 +154,6 @@ class _ExploreScreenState extends State<ExploreScreen>
 
   bool _handleScrollNotification(ScrollNotification notification) {
     if (notification is ScrollEndNotification) {
-      _cartNavigationTriggered = false;
       _homeNavigationTriggered = false;
     }
 
@@ -203,15 +168,6 @@ class _ExploreScreenState extends State<ExploreScreen>
 
         FocusScope.of(context).unfocus();
         widget.onHomePressed();
-      } else if (notification.metrics.atEdge &&
-          notification.metrics.pixels >=
-              notification.metrics.maxScrollExtent &&
-          notification.overscroll > 0 &&
-          !_cartNavigationTriggered) {
-        _cartNavigationTriggered = true;
-
-        FocusScope.of(context).unfocus();
-        widget.onCartPressed();
       }
     }
 

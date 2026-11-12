@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../services/multimedia_manager.dart';
 import '../services/music_manager.dart';
 import '../services/system_sound_manager.dart';
 import '../services/theme_manager.dart';
@@ -42,6 +43,7 @@ class AppSettings extends StatelessWidget {
   Widget build(BuildContext context) {
     final musicManager = MusicManager();
     final systemSoundManager = SystemSoundManager();
+    final multimediaManager = MultimediaManager();
     final themeManager = ThemeManager();
 
     return Column(
@@ -228,6 +230,95 @@ class AppSettings extends StatelessWidget {
         const SizedBox(height: 16),
         const Divider(),
         const SizedBox(height: 10),
+        // Etiqueta de la seccion de control de audio multimedia general
+        const Text(
+          'Multimedia',
+          style: TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF5548F5),
+          ),
+        ),
+        const SizedBox(height: 8),
+        // Escucha reactiva del volumen y estado de silencio multimedia
+        ValueListenableBuilder<double>(
+          valueListenable: multimediaManager.volumeNotifier,
+          builder: (context, volume, child) {
+            return ValueListenableBuilder<bool>(
+              valueListenable: multimediaManager.isMutedNotifier,
+              builder: (context, isMuted, _) {
+                final percentage =
+                isMuted ? 0 : (volume * 100).round();
+                final IconData currentMediaIcon = percentage <= 0
+                    ? Icons.videocam_off_rounded
+                    : Icons.ondemand_video_rounded;
+
+                return Column(
+                  children: [
+                    Row(
+                      children: [
+                        IconButton(
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                          icon: AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 200),
+                            transitionBuilder: (child, animation) {
+                              return ScaleTransition(
+                                scale: animation,
+                                child: FadeTransition(
+                                  opacity: animation,
+                                  child: child,
+                                ),
+                              );
+                            },
+                            child: Icon(
+                              currentMediaIcon,
+                              key: ValueKey<IconData>(currentMediaIcon),
+                              color: const Color(0xFF5548F5),
+                              size: 26,
+                            ),
+                          ),
+                          onPressed: () {
+                            multimediaManager.toggleMute();
+                          },
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Slider(
+                            value: percentage.toDouble(),
+                            min: 0.0,
+                            max: 100.0,
+                            divisions: 100,
+                            activeColor: const Color(0xFF5548F5),
+                            inactiveColor: const Color(0xFFE0E3E8),
+                            onChanged: (newValue) {
+                              multimediaManager.setVolume(
+                                newValue.round() / 100.0,
+                              );
+                            },
+                          ),
+                        ),
+                        SizedBox(
+                          width: 45,
+                          child: Text(
+                            '$percentage%',
+                            textAlign: TextAlign.end,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                );
+              },
+            );
+          },
+        ),
+        const SizedBox(height: 16),
+        const Divider(),
+        const SizedBox(height: 10),
         // Etiqueta y boton para cambiar el tema de la aplicacion (Luna / Sol)
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -246,7 +337,9 @@ class AppSettings extends StatelessWidget {
                 final isDark = currentMode == ThemeMode.dark;
 
                 return IconButton(
-                  tooltip: isDark ? 'Cambiar a Modo Claro' : 'Cambiar a Modo Oscuro',
+                  tooltip: isDark
+                      ? 'Cambiar a Modo Claro'
+                      : 'Cambiar a Modo Oscuro',
                   icon: Icon(
                     isDark ? Icons.light_mode : Icons.dark_mode,
                     color: const Color(0xFF5548F5),

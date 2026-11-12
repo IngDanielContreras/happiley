@@ -222,6 +222,12 @@ class _NotificationsOverlayWrapperState
     return '$day/$month/$year $hour:$minute';
   }
 
+  // Ejecucion de sonido y eliminacion persistente de notificacion
+  void _handleDeleteNotification(int id) {
+    SystemSoundManager().playRemoveArticle();
+    NotificationService().deleteNotification(id);
+  }
+
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
@@ -368,17 +374,66 @@ class _NotificationsOverlayWrapperState
                                   const SizedBox(height: 6),
                                   itemBuilder: (context, index) {
                                     final item = items[index];
-                                    return _NotificationTile(
+                                    final bool canDismiss = item.id != null &&
+                                        item.type !=
+                                            AppNotificationType.welcome;
+
+                                    final tile = _NotificationTile(
                                       notification: item,
                                       formattedDate:
                                       _formatDateTime(item.createdAt),
                                       isDark: isDark,
-                                      onDismiss: item.id != null &&
-                                          item.type !=
-                                              AppNotificationType.welcome
-                                          ? () => NotificationService()
-                                          .deleteNotification(item.id!)
+                                      onDismiss: canDismiss
+                                          ? () => _handleDeleteNotification(
+                                        item.id!,
+                                      )
                                           : null,
+                                    );
+
+                                    if (!canDismiss) {
+                                      return tile;
+                                    }
+
+                                    return Dismissible(
+                                      key: ValueKey('notification_${item.id}'),
+                                      direction: DismissDirection.endToStart,
+                                      movementDuration:
+                                      const Duration(milliseconds: 220),
+                                      resizeDuration:
+                                      const Duration(milliseconds: 200),
+                                      onDismissed: (_) =>
+                                          _handleDeleteNotification(item.id!),
+                                      background: Container(
+                                        alignment: Alignment.centerRight,
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 18,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFE53935),
+                                          borderRadius:
+                                          BorderRadius.circular(14),
+                                        ),
+                                        child: const Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(
+                                              Icons.delete_outline_rounded,
+                                              color: Colors.white,
+                                              size: 20,
+                                            ),
+                                            SizedBox(width: 6),
+                                            Text(
+                                              'Eliminar',
+                                              style: TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      child: tile,
                                     );
                                   },
                                 );

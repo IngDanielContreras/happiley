@@ -242,7 +242,7 @@ class ArticleDetailContent extends StatelessWidget {
               ],
             ),
 
-            // Seccion detallada con información del articulo (precio, stock y descripcion del producto)
+            // Seccion detallada con informacion del articulo (precio, stock y descripcion del producto)
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.all(16),
