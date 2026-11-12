@@ -28,7 +28,7 @@ class UserService {
     return false;
   }
 
-  // Autenticacion de usuario en la base de datos
+  // Autenticacion de usuario en la base de datos con recuperacion y actualizacion atomica de ultimo acceso
   Future<User?> loginUser({
     required String email,
     required String password,
@@ -44,11 +44,25 @@ class UserService {
     );
 
     if (result.isNotEmpty) {
-      final user = User.fromMap(result.first);
+      final Map<String, dynamic> userMap = result.first;
+      final User user = User.fromMap(userMap);
 
       // Verificacion de prefijo de codigo segun el rol del usuario o la pestaña
       if (isValidRoleCode(user.code, selectedRole) ||
           isValidRoleCode(user.code, user.role)) {
+
+        // Ejecucion transaccional atomica para conservar el acceso anterior y registrar el actual
+        await db.transaction((txn) async {
+          final String currentTimestamp = DateTime.now().toIso8601String();
+
+          await txn.update(
+            'users',
+            {'last_access_date': currentTimestamp},
+            where: 'id = ?',
+            whereArgs: [user.id],
+          );
+        });
+
         return user;
       }
     }
