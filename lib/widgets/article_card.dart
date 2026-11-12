@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/article.dart';
 import '../services/cart_manager.dart';
 import '../services/app_utils.dart';
+import '../services/system_sound_manager.dart';
 import '../widgets/loading_dialog.dart';
 
 class ArticleCard extends StatelessWidget {
@@ -64,6 +65,7 @@ class ArticleCard extends StatelessWidget {
         subtitle: 'El artículo ha sido eliminado del carrito.',
         autoDismiss: true,
         duration: const Duration(seconds: 2),
+        customSoundType: SystemSoundType.removeArticle,
         customIcon: const Icon(
           Icons.remove_shopping_cart_rounded,
           color: Color(0xFFE53935),
@@ -77,6 +79,7 @@ class ArticleCard extends StatelessWidget {
         subtitle: 'El artículo se ha añadido a tu carrito de compras.',
         autoDismiss: true,
         duration: const Duration(seconds: 2),
+        customSoundType: SystemSoundType.addArticle,
         customIcon: const Icon(
           Icons.check_circle_rounded,
           color: Color(0xFF4CAF50),

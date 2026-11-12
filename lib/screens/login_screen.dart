@@ -1,11 +1,11 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:flutter/services.dart' hide SystemSoundType;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../database/user_service.dart';
 import '../services/session_manager.dart';
+import '../services/system_sound_manager.dart';
 import '../widgets/loading_dialog.dart';
-
 
 class LoginScreen extends StatefulWidget {
   final Function(String userCode)? onLoginSuccess;
@@ -70,7 +70,7 @@ class _LoginScreenState extends State<LoginScreen>
     final isRemembered = prefs.getBool(keyRememberData) ?? false;
     final savedEmail = prefs.getString(keySavedEmail) ?? '';
 
-    if (isRemembered && savedEmail.isNotEmpty) {
+    if (isRemembered && savedEmail.isNotEmpty && mounted) {
       setState(() {
         rememberData = true;
         emailController.text = savedEmail;
@@ -93,6 +93,8 @@ class _LoginScreenState extends State<LoginScreen>
   // Verificacion del estado de bloqueo temporal o permanente
   Future<void> _checkLockoutStatus() async {
     final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+
     failedAttempts = prefs.getInt(keyFailedAttempts) ?? 0;
     lockoutLevel = prefs.getInt(keyLockoutLevel) ?? 0;
     final lockoutEndTimeMs = prefs.getInt(keyLockoutEndTime) ?? 0;
@@ -103,7 +105,7 @@ class _LoginScreenState extends State<LoginScreen>
 
       if (diffSeconds > 0) {
         unlockDateTime = DateTime.fromMillisecondsSinceEpoch(lockoutEndTimeMs);
-        if (lockoutLevel >= lockoutDurationsMinutes.length) {
+        if (lockoutLevel >= lockoutDurationsMinutes.length - 1) {
           isPermanentlyBlocked24h = true;
         }
         emailController.clear();
@@ -123,6 +125,11 @@ class _LoginScreenState extends State<LoginScreen>
 
     lockoutTimer?.cancel();
     lockoutTimer = Timer.periodic(const Duration(seconds: 1), (timer) async {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+
       if (remainingSeconds <= 1) {
         timer.cancel();
         await _clearLockoutTimerOnly();
@@ -141,6 +148,9 @@ class _LoginScreenState extends State<LoginScreen>
     await prefs.remove(keyFailedAttempts);
 
     lockoutTimer?.cancel();
+
+    if (!mounted) return;
+
     setState(() {
       failedAttempts = 0;
       remainingSeconds = 0;
@@ -157,6 +167,9 @@ class _LoginScreenState extends State<LoginScreen>
     await prefs.remove(keyLockoutEndTime);
 
     lockoutTimer?.cancel();
+
+    if (!mounted) return;
+
     setState(() {
       failedAttempts = 0;
       lockoutLevel = 0;
@@ -187,6 +200,7 @@ class _LoginScreenState extends State<LoginScreen>
 
       final currentDurationMin = lockoutDurationsMinutes[
       lockoutLevel.clamp(0, lockoutDurationsMinutes.length - 1).toInt()];
+
       await LoadingDialog.show(
         context,
         title: '¡Te Queda Un Solo Intento!',
@@ -194,6 +208,7 @@ class _LoginScreenState extends State<LoginScreen>
         'En caso de inicio de sesión fallido, debe esperar $currentDurationMin minutos y volver a intentarlo al finalizar el tiempo.',
         autoDismiss: true,
         duration: const Duration(seconds: 5),
+        playOpenSound: false,
         customIcon: const Icon(
           Icons.warning_amber_rounded,
           color: Color(0xFFFF9800),
@@ -205,7 +220,7 @@ class _LoginScreenState extends State<LoginScreen>
       passwordController.clear();
 
       final durationMinutes = lockoutDurationsMinutes[
-      lockoutLevel.clamp(0, lockoutDurationsMinutes.length - 1)];
+      lockoutLevel.clamp(0, lockoutDurationsMinutes.length - 1).toInt()];
 
       final durationSeconds = durationMinutes * 60;
 
@@ -234,6 +249,8 @@ class _LoginScreenState extends State<LoginScreen>
           subtitle: 'Inténtelo después de ${_formatUnlockDate(unlockTime)}',
           autoDismiss: true,
           duration: const Duration(seconds: 5),
+          playOpenSound: false,
+          customSoundType: SystemSoundType.error,
           customIcon: const Icon(
             Icons.block_rounded,
             color: Color(0xFFE53935),
@@ -242,6 +259,7 @@ class _LoginScreenState extends State<LoginScreen>
         );
       }
 
+      if (!mounted) return;
       _startLockoutTimer(durationSeconds);
     }
   }
@@ -289,7 +307,9 @@ class _LoginScreenState extends State<LoginScreen>
     if (!emailRegex.hasMatch(email)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('El correo debe incluir un texto antes y después de la arroba, y un punto con texto antes y después.'),
+          content: Text(
+            'El correo debe incluir un texto antes y después de la arroba, y un punto con texto antes y después.',
+          ),
         ),
       );
       return;
@@ -300,6 +320,7 @@ class _LoginScreenState extends State<LoginScreen>
       title: 'Iniciando Sesión',
       subtitle: 'Validando credenciales...',
       autoDismiss: false,
+      playOpenSound: false,
       customIcon: const SizedBox(
         width: 40,
         height: 40,
@@ -333,6 +354,8 @@ class _LoginScreenState extends State<LoginScreen>
         subtitle: 'Bienvenido de nuevo a Happiley',
         autoDismiss: true,
         duration: const Duration(seconds: 5),
+        playOpenSound: false,
+        customSoundType: SystemSoundType.success,
         customIcon: const Icon(
           Icons.check_circle_rounded,
           color: Color(0xFF4CAF50),
@@ -360,6 +383,8 @@ class _LoginScreenState extends State<LoginScreen>
         subtitle: 'Contraseña incorrecta o correo no registrado.',
         autoDismiss: true,
         duration: const Duration(seconds: 5),
+        playOpenSound: false,
+        customSoundType: SystemSoundType.error,
         customIcon: const Icon(
           Icons.cancel_rounded,
           color: Color(0xFFE53935),
@@ -485,7 +510,7 @@ class _LoginScreenState extends State<LoginScreen>
 
                     const SizedBox(height: 36),
 
-                    // Selector de pestañas de roles de usuario autorizados
+                    // Selector de pestanas de roles de usuario autorizados
                     Container(
                       height: 44,
                       padding: const EdgeInsets.all(3),
@@ -581,7 +606,7 @@ class _LoginScreenState extends State<LoginScreen>
 
                     const SizedBox(height: 17),
 
-                    // Etiqueta de campo para la contraseña de acceso
+                    // Etiqueta de campo para la contrasena de acceso
                     const Align(
                       alignment: Alignment.centerLeft,
                       child: Text(
@@ -595,7 +620,7 @@ class _LoginScreenState extends State<LoginScreen>
 
                     const SizedBox(height: 7),
 
-                    // Campo de texto protegido para la contraseña del sistema
+                    // Campo de texto protegido para la contrasena del sistema
                     TextField(
                       controller: passwordController,
                       enabled: !isLocked,
@@ -835,7 +860,10 @@ class _LoginScreenState extends State<LoginScreen>
                   top: 15,
                   right: 15,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFFD32F2F).withValues(alpha: 0.95),
                       borderRadius: BorderRadius.circular(20),

@@ -9,6 +9,8 @@ class LoadingDialog extends StatefulWidget {
   final Duration duration;
   final bool autoDismiss;
   final bool isExitDialog;
+  final bool playOpenSound;
+  final SystemSoundType? customSoundType;
 
   const LoadingDialog({
     super.key,
@@ -18,6 +20,8 @@ class LoadingDialog extends StatefulWidget {
     this.duration = const Duration(seconds: 5),
     this.autoDismiss = false,
     this.isExitDialog = false,
+    this.playOpenSound = true,
+    this.customSoundType,
   });
 
   static Future<void> show(
@@ -28,6 +32,8 @@ class LoadingDialog extends StatefulWidget {
         Duration duration = const Duration(seconds: 5),
         bool autoDismiss = false,
         bool isExitDialog = false,
+        bool playOpenSound = true,
+        SystemSoundType? customSoundType,
       }) {
     return showDialog<void>(
       context: context,
@@ -46,6 +52,8 @@ class LoadingDialog extends StatefulWidget {
             duration: duration,
             autoDismiss: autoDismiss,
             isExitDialog: isExitDialog,
+            playOpenSound: playOpenSound,
+            customSoundType: customSoundType,
           ),
         );
       },
@@ -70,7 +78,15 @@ class _LoadingDialogState extends State<LoadingDialog>
     _hasTriggeredSounds = true;
 
     final soundManager = SystemSoundManager();
-    soundManager.playDialogOpen();
+
+    if (widget.customSoundType != null) {
+      soundManager.playSound(widget.customSoundType!);
+      return;
+    }
+
+    if (widget.playOpenSound) {
+      soundManager.playDialogOpen();
+    }
 
     if (widget.isExitDialog) {
       soundManager.playExit();

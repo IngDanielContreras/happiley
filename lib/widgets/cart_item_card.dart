@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/article.dart';
 import '../screens/article_detail_screen.dart';
 import '../services/app_utils.dart';
+import '../services/system_sound_manager.dart';
 import 'alert_message.dart';
 import 'loading_dialog.dart';
 
@@ -81,6 +82,7 @@ class CartItemCard extends StatelessWidget {
       subtitle: 'El artículo ha sido eliminado del carrito.',
       autoDismiss: true,
       duration: const Duration(seconds: 2),
+      customSoundType: SystemSoundType.removeArticle,
       customIcon: const Icon(
         Icons.remove_shopping_cart_rounded,
         color: Color(0xFFE53935),

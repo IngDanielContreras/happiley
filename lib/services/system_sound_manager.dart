@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'music_manager.dart';
 
 enum SystemSoundType {
   dialogOpen,
@@ -11,6 +13,8 @@ enum SystemSoundType {
   error,
   alert,
   success,
+  addArticle,
+  removeArticle,
 }
 
 class SystemSoundManager with WidgetsBindingObserver {
@@ -20,6 +24,7 @@ class SystemSoundManager with WidgetsBindingObserver {
 
   SystemSoundManager._internal() {
     WidgetsBinding.instance.addObserver(this);
+    _initPlayers();
   }
 
   // Reproductores independientes para apertura de dialogos y respuestas
@@ -28,6 +33,13 @@ class SystemSoundManager with WidgetsBindingObserver {
 
   final ValueNotifier<int> volumePercentNotifier = ValueNotifier<int>(100);
   final Map<SystemSoundType, Uint8List> _soundCache = {};
+
+  bool _dialogPlayerDucking = false;
+  bool _feedbackPlayerDucking = false;
+  Timer? _dialogSafetyTimer;
+  Timer? _feedbackSafetyTimer;
+  StreamSubscription<void>? _dialogCompleteSub;
+  StreamSubscription<void>? _feedbackCompleteSub;
 
   // Rutas fisicas de los archivos de audio del sistema
   static const Map<SystemSoundType, String> _assetPaths = {
@@ -45,7 +57,81 @@ class SystemSoundManager with WidgetsBindingObserver {
     'lib/assets/music/system_sounds/alert_sound.m4a',
     SystemSoundType.success:
     'lib/assets/music/system_sounds/sound_success.m4a',
+    SystemSoundType.addArticle:
+    'lib/assets/music/system_sounds/add_article_sound.m4a',
+    SystemSoundType.removeArticle:
+    'lib/assets/music/system_sounds/remove_article_sound.m4a',
   };
+
+  Future<void> _initPlayers() async {
+    final context = AudioContext(
+      android: const AudioContextAndroid(
+        isSpeakerphoneOn: false,
+        stayAwake: false,
+        contentType: AndroidContentType.sonification,
+        usageType: AndroidUsageType.assistanceSonification,
+        audioFocus: AndroidAudioFocus.none,
+      ),
+      iOS: AudioContextIOS(
+        category: AVAudioSessionCategory.ambient,
+      ),
+    );
+
+    try {
+      await _dialogOpenPlayer.setAudioContext(context);
+      await _feedbackPlayer.setAudioContext(context);
+      await _dialogOpenPlayer.setReleaseMode(ReleaseMode.stop);
+      await _feedbackPlayer.setReleaseMode(ReleaseMode.stop);
+    } catch (e) {
+      debugPrint('Error al configurar reproductores de sonidos del sistema: $e');
+    }
+
+    _dialogCompleteSub = _dialogOpenPlayer.onPlayerComplete.listen((_) {
+      _releaseDialogDuck();
+    });
+
+    _feedbackCompleteSub = _feedbackPlayer.onPlayerComplete.listen((_) {
+      _releaseFeedbackDuck();
+    });
+  }
+
+  void _acquireDialogDuck() {
+    _dialogSafetyTimer?.cancel();
+    if (!_dialogPlayerDucking) {
+      _dialogPlayerDucking = true;
+      MusicManager().requestDuck();
+    }
+    _dialogSafetyTimer = Timer(const Duration(seconds: 4), () {
+      _releaseDialogDuck();
+    });
+  }
+
+  void _releaseDialogDuck() {
+    _dialogSafetyTimer?.cancel();
+    if (_dialogPlayerDucking) {
+      _dialogPlayerDucking = false;
+      MusicManager().releaseDuck();
+    }
+  }
+
+  void _acquireFeedbackDuck() {
+    _feedbackSafetyTimer?.cancel();
+    if (!_feedbackPlayerDucking) {
+      _feedbackPlayerDucking = true;
+      MusicManager().requestDuck();
+    }
+    _feedbackSafetyTimer = Timer(const Duration(seconds: 4), () {
+      _releaseFeedbackDuck();
+    });
+  }
+
+  void _releaseFeedbackDuck() {
+    _feedbackSafetyTimer?.cancel();
+    if (_feedbackPlayerDucking) {
+      _feedbackPlayerDucking = false;
+      MusicManager().releaseDuck();
+    }
+  }
 
   double get normalizedVolume =>
       (volumePercentNotifier.value.clamp(0, 100)) / 100.0;
@@ -120,15 +206,31 @@ class SystemSoundManager with WidgetsBindingObserver {
     if (bytes == null) return;
 
     final double volume = currentPercent / 100.0;
+    final bool isDialogSound = type == SystemSoundType.dialogOpen;
     final AudioPlayer targetPlayer =
-    type == SystemSoundType.dialogOpen ? _dialogOpenPlayer : _feedbackPlayer;
+    isDialogSound ? _dialogOpenPlayer : _feedbackPlayer;
 
     try {
-      await targetPlayer.stop();
+      if (isDialogSound) {
+        _acquireDialogDuck();
+      } else {
+        _acquireFeedbackDuck();
+      }
+
+      if (targetPlayer.state == PlayerState.playing ||
+          targetPlayer.state == PlayerState.paused) {
+        await targetPlayer.stop();
+      }
+      await targetPlayer.release();
       await targetPlayer.setReleaseMode(ReleaseMode.stop);
       await targetPlayer.setVolume(volume);
       await targetPlayer.play(BytesSource(bytes));
     } catch (e) {
+      if (isDialogSound) {
+        _releaseDialogDuck();
+      } else {
+        _releaseFeedbackDuck();
+      }
       debugPrint('Error al reproducir sonido del sistema ($type): $e');
     }
   }
@@ -140,6 +242,8 @@ class SystemSoundManager with WidgetsBindingObserver {
   Future<void> playError() => playSound(SystemSoundType.error);
   Future<void> playAlert() => playSound(SystemSoundType.alert);
   Future<void> playSuccess() => playSound(SystemSoundType.success);
+  Future<void> playAddArticle() => playSound(SystemSoundType.addArticle);
+  Future<void> playRemoveArticle() => playSound(SystemSoundType.removeArticle);
 
   // Detencion de todos los reproductores activos del sistema
   Future<void> stopAllSystemSounds() async {
@@ -148,12 +252,17 @@ class SystemSoundManager with WidgetsBindingObserver {
       await _feedbackPlayer.stop();
     } catch (e) {
       debugPrint('Error al detener sonidos del sistema: $e');
+    } finally {
+      _releaseDialogDuck();
+      _releaseFeedbackDuck();
     }
   }
 
   // Liberacion de recursos en memoria
   Future<void> dispose() async {
     WidgetsBinding.instance.removeObserver(this);
+    await _dialogCompleteSub?.cancel();
+    await _feedbackCompleteSub?.cancel();
     await stopAllSystemSounds();
     await _dialogOpenPlayer.dispose();
     await _feedbackPlayer.dispose();

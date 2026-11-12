@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/article.dart';
 import '../services/cart_manager.dart';
 import '../services/app_utils.dart';
+import '../services/system_sound_manager.dart';
 import '../widgets/cart_item_card.dart';
 import '../widgets/loading_dialog.dart';
 import '../widgets/alert_message.dart';
@@ -38,12 +39,13 @@ class _CartScreenState extends State<CartScreen> {
 
   // Incremento controlado de unidades respetando el limite de existencias disponible en stock
   void incrementQuantity(Article article) {
-    setState(() {
-      int current = quantities[article.id] ?? 1;
-      if (current < article.stock) {
+    int current = quantities[article.id] ?? 1;
+    if (current < article.stock) {
+      setState(() {
         quantities[article.id] = current + 1;
-      }
-    });
+      });
+      SystemSoundManager().playAddArticle();
+    }
   }
 
   // Decremento de unidades con eliminacion automatica al reducir por debajo de la unidad
@@ -53,8 +55,10 @@ class _CartScreenState extends State<CartScreen> {
       setState(() {
         quantities[article.id] = current - 1;
       });
+      SystemSoundManager().playRemoveArticle();
     } else {
       removeItem(article);
+      SystemSoundManager().playRemoveArticle();
     }
   }
 
