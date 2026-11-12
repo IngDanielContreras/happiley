@@ -35,6 +35,7 @@ class _ArticleDescriptionViewerState
     }
   }
 
+  // Inicializacion del controlador en modo solo lectura si la descripcion es JSON Delta
   void _initializeController() {
     if (widget.description.isEmpty) return;
 
@@ -52,6 +53,7 @@ class _ArticleDescriptionViewerState
     }
   }
 
+  // Liberacion de recursos del controlador de texto
   void _disposeController() {
     _controller?.dispose();
     _controller = null;
@@ -75,8 +77,9 @@ class _ArticleDescriptionViewerState
       );
     }
 
+    // Renderizado de texto plano seleccionable para articulos precargados
     if (_controller == null) {
-      return Text(
+      return SelectableText(
         widget.description,
         style: const TextStyle(
           color: Color(0xFF616161),
@@ -85,11 +88,14 @@ class _ArticleDescriptionViewerState
       );
     }
 
+    // Renderizado de texto sin cursor para articulos publicados
     return QuillEditor.basic(
       controller: _controller!,
       config: QuillEditorConfig(
         autoFocus: false,
         expands: false,
+        showCursor: false,
+        enableInteractiveSelection: true,
         customStyles: DefaultStyles(
           paragraph: DefaultTextBlockStyle(
             const TextStyle(
