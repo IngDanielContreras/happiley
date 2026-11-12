@@ -3,6 +3,7 @@ import 'services/theme_manager.dart';
 import 'services/session_manager.dart';
 import 'services/music_manager.dart';
 import 'services/system_sound_manager.dart';
+import 'services/notification_service.dart';
 import 'screens/main_screen.dart';
 import 'services/cart_manager.dart';
 
@@ -17,6 +18,9 @@ Future<void> main() async {
     SessionManager.loadSavedSession(),
     CartManager.loadSavedCart(),
   ]);
+
+  // Inicializacion del servicio centralizado de notificaciones
+  await NotificationService().initialize();
 
   runApp(const MyApp());
 }

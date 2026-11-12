@@ -8,6 +8,7 @@ import 'article_detail_screen.dart';
 import 'publish_article_screen.dart';
 import '../models/article.dart';
 import '../widgets/bottom_navigation.dart';
+import '../widgets/alert_message.dart';
 import 'home_screen.dart';
 import '../services/session_manager.dart';
 
@@ -33,12 +34,20 @@ class MainScreenState extends State<MainScreen> {
   List<Article> availableArticles = [];
 
   int exploreKeyCounter = 0;
+  bool _pendingCartRedirect = false;
 
   @override
   void initState() {
     super.initState();
 
-    currentIndex = widget.initialIndex.clamp(0, 3).toInt();
+    // Validacion inicial de acceso al carrito segun estado de sesion
+    final requestedIndex = widget.initialIndex.clamp(0, 3).toInt();
+    if (requestedIndex == 2 && !SessionManager.isLoggedIn) {
+      currentIndex = 3;
+      _pendingCartRedirect = true;
+    } else {
+      currentIndex = requestedIndex;
+    }
 
     pageController = PageController(
       initialPage: currentIndex,
@@ -51,17 +60,43 @@ class MainScreenState extends State<MainScreen> {
     super.dispose();
   }
 
+  // Despliegue de alerta de autenticacion requerida para acceder al carrito
+  void _promptAuthenticationForCart() {
+    AlertMessage.show(
+      context: context,
+      title: 'Inicio de Sesión Requerido',
+      message:
+      'Debes iniciar sesión para acceder al carrito de compras y realizar pedidos.',
+      confirmText: 'Iniciar Sesión',
+      cancelText: 'Cancelar',
+      isConfirmDefault: true,
+      onConfirm: () {
+        _pendingCartRedirect = true;
+        changeTab(3);
+      },
+    );
+  }
+
   // Cambio de la pestana activa en la barra de navegacion inferior
   void changeTab(int index) {
     if (index < 0 || index > 3) return;
+
+    // Bloqueo de navegacion directa al carrito sin sesion activa
+    if (index == 2 && !SessionManager.isLoggedIn) {
+      if (pageController.hasClients &&
+          pageController.page?.round() != currentIndex) {
+        pageController.jumpToPage(currentIndex);
+      }
+      _promptAuthenticationForCart();
+      return;
+    }
 
     setState(() {
       currentIndex = index;
       selectedArticle = null;
     });
 
-    if (pageController.hasClients &&
-        pageController.page?.round() != index) {
+    if (pageController.hasClients && pageController.page?.round() != index) {
       pageController.animateToPage(
         index,
         duration: const Duration(milliseconds: 300),
@@ -70,7 +105,16 @@ class MainScreenState extends State<MainScreen> {
     }
   }
 
+  // Control de cambio de pagina mediante deslizamiento horizontal
   void _onPageChanged(int index) {
+    if (index == 2 && !SessionManager.isLoggedIn) {
+      if (pageController.hasClients) {
+        pageController.jumpToPage(currentIndex);
+      }
+      _promptAuthenticationForCart();
+      return;
+    }
+
     setState(() {
       currentIndex = index;
 
@@ -95,8 +139,7 @@ class MainScreenState extends State<MainScreen> {
       currentIndex = 1;
     });
 
-    if (pageController.hasClients &&
-        pageController.page?.round() != 1) {
+    if (pageController.hasClients && pageController.page?.round() != 1) {
       pageController.jumpToPage(1);
     }
   }
@@ -110,6 +153,11 @@ class MainScreenState extends State<MainScreen> {
 
   // Transicion directa hacia la pagina del carrito de compras
   void buyNowAndGoToCart() {
+    if (!SessionManager.isLoggedIn) {
+      _promptAuthenticationForCart();
+      return;
+    }
+
     setState(() {
       selectedArticle = null;
     });
@@ -119,11 +167,17 @@ class MainScreenState extends State<MainScreen> {
 
   // Gestion posterior a un inicio de sesion exitoso
   void _handleLoginSuccess(String userCode) {
-    changeTab(3);
+    if (_pendingCartRedirect) {
+      _pendingCartRedirect = false;
+      changeTab(2);
+    } else {
+      changeTab(3);
+    }
   }
 
   // Proceso de cierre de sesion activa del usuario
   Future<void> onLogout() async {
+    _pendingCartRedirect = false;
     await SessionManager.clearSession();
 
     if (!mounted) return;
@@ -221,8 +275,10 @@ class MainScreenState extends State<MainScreen> {
       child: ValueListenableBuilder<String?>(
         valueListenable: SessionManager.activeUserCode,
         builder: (context, userCode, child) {
+          final bool isAuthenticated = userCode != null;
+
           // Renderizado condicional del perfil de usuario o inicio de sesion
-          final Widget profileOrLoginWidget = userCode != null
+          final Widget profileOrLoginWidget = isAuthenticated
               ? ProfileScreen(
             key: ValueKey('user_profile_$userCode'),
             userCode: userCode,
@@ -236,6 +292,19 @@ class MainScreenState extends State<MainScreen> {
               : LoginScreen(
             key: const Key('user_login_screen'),
             onLoginSuccess: _handleLoginSuccess,
+          );
+
+          // Renderizado protegido del carrito segun estado de autenticacion
+          final Widget protectedCartWidget = isAuthenticated
+              ? const CartScreen(
+            key: ValueKey('cart_screen'),
+          )
+              : CartScreen(
+            key: const ValueKey('cart_screen_restricted'),
+            onRequestLogin: () {
+              _pendingCartRedirect = true;
+              changeTab(3);
+            },
           );
 
           return Scaffold(
@@ -255,13 +324,10 @@ class MainScreenState extends State<MainScreen> {
                       },
                     ),
                     exploreOrDetailWidget,
-                    const CartScreen(
-                      key: ValueKey('cart_screen'),
-                    ),
+                    protectedCartWidget,
                     profileOrLoginWidget,
                   ],
                 ),
-
                 if (currentIndex == 4)
                   Positioned.fill(
                     child: PublishArticleScreen(

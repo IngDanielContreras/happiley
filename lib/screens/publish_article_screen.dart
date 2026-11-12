@@ -1,4 +1,3 @@
-
 import 'dart:convert';
 import 'dart:io';
 
@@ -12,6 +11,8 @@ import 'package:path/path.dart' as p;
 
 import 'image_viewer_screen.dart';
 import '../services/app_utils.dart';
+import '../services/session_manager.dart';
+import '../services/notification_service.dart';
 import '../widgets/loading_dialog.dart';
 import '../widgets/rich_text_toolbar.dart';
 import '../widgets/alert_message.dart';
@@ -308,6 +309,16 @@ class _PublishArticleScreenState extends State<PublishArticleScreen> {
     _clearForm();
   }
 
+  Future<void> _registerFailedPublishNotification(String reason) async {
+    final userCode = SessionManager.activeUserCode.value;
+    if (userCode != null && userCode.isNotEmpty) {
+      await NotificationService().notifyPublishFailed(
+        userCode: userCode,
+        reason: reason,
+      );
+    }
+  }
+
   // Solicitud de confirmacion mediante alerta antes de publicar
   void _confirmPublishArticle() {
     FocusScope.of(context).unfocus();
@@ -321,11 +332,13 @@ class _PublishArticleScreenState extends State<PublishArticleScreen> {
     if (!isFormValid ||
         _selectedImageFile == null ||
         plainTextDescription.isEmpty) {
+      const String validationError =
+          'Debe completar todos los campos obligatorios, ingresar la descripción y seleccionar una imagen.';
+      _registerFailedPublishNotification(validationError);
       LoadingDialog.show(
         context,
         title: '¡Artículo No Publicado!',
-        subtitle:
-        'Debe completar todos los campos obligatorios, ingresar la descripción y seleccionar una imagen.',
+        subtitle: validationError,
         autoDismiss: true,
         duration: const Duration(seconds: 5),
         customIcon: const Icon(
@@ -374,8 +387,7 @@ class _PublishArticleScreenState extends State<PublishArticleScreen> {
       final db = await _getDatabase();
 
       // Obtencion del consecutivo actual de la base de datos
-      final List<Map<String, Object?>> countQuery =
-      await db.rawQuery(
+      final countQuery = await db.rawQuery(
         'SELECT COUNT(*) AS total FROM articles',
       );
 
@@ -385,11 +397,14 @@ class _PublishArticleScreenState extends State<PublishArticleScreen> {
       final int consecutiveNumber = totalArticles + 1;
 
       if (consecutiveNumber > 999) {
+        const String limitError =
+            'Se ha alcanzado el límite de novecientos noventa y nueve artículos. Amplíe la convención de nomenclatura.';
+        await _registerFailedPublishNotification(limitError);
+        if (!mounted) return;
         await LoadingDialog.show(
           context,
           title: '¡Artículo No Publicado!',
-          subtitle:
-          'Error al registrar el artículo: Se ha alcanzado el límite de novecientos noventa y nueve artículos. Amplíe la convención de nomenclatura.',
+          subtitle: 'Error al registrar el artículo: $limitError',
           autoDismiss: true,
           duration: const Duration(seconds: 5),
           customIcon: const Icon(
@@ -458,10 +473,13 @@ class _PublishArticleScreenState extends State<PublishArticleScreen> {
       double.tryParse(cleanPriceString);
 
       if (numericSalePrice == null) {
+        const String priceError = 'Ingresa un precio válido.';
+        await _registerFailedPublishNotification(priceError);
+        if (!mounted) return;
         await LoadingDialog.show(
           context,
           title: '¡Artículo No Publicado!',
-          subtitle: 'Error al registrar el artículo: Ingresa un precio válido.',
+          subtitle: 'Error al registrar el artículo: $priceError',
           autoDismiss: true,
           duration: const Duration(seconds: 5),
           customIcon: const Icon(
@@ -478,9 +496,11 @@ class _PublishArticleScreenState extends State<PublishArticleScreen> {
         _quillController.document.toDelta().toJson(),
       );
 
+      final String articleName = _nameController.text.trim();
+
       await db.insert('articles', {
         'code': codeName,
-        'name': _nameController.text.trim(),
+        'name': articleName,
         'description': richTextJson,
         'purchase_price': 0.0,
         'sale_price': numericSalePrice,
@@ -493,6 +513,15 @@ class _PublishArticleScreenState extends State<PublishArticleScreen> {
         _supportEndDateController.text.trim(),
         'image': relativeImagePath,
       });
+
+      final String? userCode = SessionManager.activeUserCode.value;
+      if (userCode != null && userCode.isNotEmpty) {
+        await NotificationService().notifyPublishSuccess(
+          userCode: userCode,
+          articleCode: codeName,
+          articleName: articleName,
+        );
+      }
 
       // Confirmacion de exito y reinicio del formulario
       if (!mounted) return;
@@ -520,6 +549,7 @@ class _PublishArticleScreenState extends State<PublishArticleScreen> {
         _handleBack();
       }
     } catch (e) {
+      await _registerFailedPublishNotification('$e');
       if (!mounted) return;
 
       await LoadingDialog.show(
@@ -630,7 +660,7 @@ class _PublishArticleScreenState extends State<PublishArticleScreen> {
     );
   }
 
-  // Estructura comun para el diseño de las cajas de texto
+  // Estructura comun para el diseno de las cajas de texto
   InputDecoration _inputDecoration({
     required String hint,
     Widget? suffixIcon,

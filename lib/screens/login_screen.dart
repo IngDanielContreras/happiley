@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../database/user_service.dart';
 import '../services/session_manager.dart';
 import '../services/system_sound_manager.dart';
+import '../services/notification_service.dart';
 import '../widgets/loading_dialog.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -345,6 +346,10 @@ class _LoginScreenState extends State<LoginScreen>
     if (user != null) {
       await _resetFullSecurityPolicy();
       await _saveUserDataPreference(email);
+      await SessionManager.saveSession(user.code);
+
+      // Registro persistente de notificacion de inicio de sesion exitoso
+      await NotificationService().notifyLoginSuccess(user.code);
 
       if (!mounted) return;
 
@@ -362,10 +367,6 @@ class _LoginScreenState extends State<LoginScreen>
           size: 56,
         ),
       );
-
-      if (!mounted) return;
-
-      await SessionManager.saveSession(user.code);
 
       if (!mounted) return;
 
