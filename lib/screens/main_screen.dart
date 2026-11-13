@@ -348,7 +348,16 @@ class MainScreenState extends State<MainScreen> {
               children: [
                 PageView(
                   controller: pageController,
-                  onPageChanged: _onPageChanged,
+                  onPageChanged: (index) {
+                    // Prevenir disparar la redireccion/prompt de autenticacion al deslizar libremente hacia el carrito sin estar logueado
+                    if (index == 2 && !SessionManager.isLoggedIn) {
+                      if (pageController.hasClients) {
+                        pageController.jumpToPage(currentIndex);
+                      }
+                      return;
+                    }
+                    _onPageChanged(index);
+                  },
                   physics: selectedArticle != null || !isAuthenticated
                       ? const NeverScrollableScrollPhysics()
                       : const ClampingScrollPhysics(),

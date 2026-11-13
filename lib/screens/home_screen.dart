@@ -5,6 +5,7 @@ import 'main_screen.dart';
 import '../widgets/alert_message.dart';
 import '../widgets/loading_dialog.dart';
 import '../widgets/app_settings.dart';
+import '../widgets/notifications_panel.dart';
 
 class HomeScreen extends StatelessWidget {
   final VoidCallback? onExplore;
@@ -14,7 +15,7 @@ class HomeScreen extends StatelessWidget {
     this.onExplore,
   });
 
-  // Despliegue de animación de salida
+  // Despliegue de animacion de salida
   void _showExitAnimation(BuildContext context) async {
     LoadingDialog.show(
       context,
@@ -22,6 +23,7 @@ class HomeScreen extends StatelessWidget {
       subtitle: 'Nos vemos pronto.',
       autoDismiss: true,
       duration: const Duration(seconds: 5),
+      isExitDialog: true,
     );
     await Future.delayed(const Duration(seconds: 5));
     SystemNavigator.pop();
@@ -63,7 +65,7 @@ class HomeContent extends StatelessWidget {
     required this.onExitApp,
   });
 
-// Estructura visual
+  // Estructura visual
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -82,15 +84,9 @@ class HomeContent extends StatelessWidget {
         ),
         centerTitle: true,
         actions: [
-          // Icono de notificaciones superior derecho
-          IconButton(
-            onPressed: () {},
-            icon: const Icon(
-              Icons.notifications_none,
-              color: Colors.white,
-            ),
-          ),
-          // Icono de opciones y configuración reutilizado de ImageViewerScreen
+          // Icono de notificaciones superior derecho con contador dinamico
+          const NotificationBellButton(),
+          // Icono de opciones y configuracion reutilizado de ImageViewerScreen
           IconButton(
             onPressed: () {
               AppSettings.showOptionsDialog(context);
@@ -267,7 +263,8 @@ class HomeContent extends StatelessWidget {
                         AlertMessage.show(
                           context: context,
                           title: 'Cerrar Aplicación',
-                          message: '¿Está seguro de que desea cerrar la aplicación?',
+                          message:
+                          '¿Está seguro de que desea cerrar la aplicación?',
                           confirmText: 'Sí',
                           cancelText: 'No',
                           isConfirmDefault: false,

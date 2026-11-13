@@ -1,3 +1,4 @@
+import 'package:intl/intl.dart';
 import '../models/user.dart';
 import 'article_service.dart';
 
@@ -10,8 +11,9 @@ class UserService {
     final hasUppercase = password.contains(RegExp(r'[A-Z]'));
     final hasLowercase = password.contains(RegExp(r'[a-z]'));
     final hasDigits = password.contains(RegExp(r'[0-9]'));
-    final hasSpecialCharacters =
-    password.contains(RegExp(r'[!@#$%^&*(),.?":{}|<>]'));
+    final hasSpecialCharacters = password.contains(
+      RegExp(r'[!@#$%^&*(),.?":{}|<>]'),
+    );
 
     return hasUppercase && hasLowercase && hasDigits && hasSpecialCharacters;
   }
@@ -26,6 +28,30 @@ class UserService {
     if (cleanRole == 'vendedor' && code.startsWith('SUR')) return true;
     if (cleanRole == 'visitante' && code.startsWith('VUR')) return true;
     return false;
+  }
+
+  // Funcion auxiliar para formatear la fecha ISO en un texto legible y amigable
+  String _formatReadableDate(String isoDateString) {
+    if (isoDateString.isEmpty) return 'Primer acceso';
+
+    try {
+      final DateTime parsedDate = DateTime.parse(isoDateString);
+      final String formattedDate = DateFormat(
+        'dd/MM/yyyy',
+        'es_ES',
+      ).format(parsedDate);
+      final String formattedTime = DateFormat(
+        'h:mm a',
+        'en_US',
+      ).format(parsedDate);
+
+      final String period = formattedTime.endsWith('AM') ? 'a.m.' : 'p.m.';
+      final String time = formattedTime.replaceAll(RegExp(r' AM| PM'), '');
+
+      return '$formattedDate a las $time $period';
+    } catch (e) {
+      return isoDateString;
+    }
   }
 
   // Autenticacion de usuario en la base de datos con recuperacion y actualizacion atomica de ultimo acceso
@@ -44,25 +70,33 @@ class UserService {
     );
 
     if (result.isNotEmpty) {
-      final Map<String, dynamic> userMap = result.first;
+      final Map<String, dynamic> userMap = Map<String, dynamic>.from(
+        result.first,
+      );
+
+      // Capturamos la fecha de acceso almacenada previamente (acceso anterior)
+      final String rawLastAccess = userMap['last_access_date'] as String? ?? '';
+
+      // Ejecucion transaccional atomica para registrar el acceso actual antes de retornar
+      await db.transaction((txn) async {
+        final String currentTimestamp = DateTime.now().toIso8601String();
+
+        await txn.update(
+          'users',
+          {'last_access_date': currentTimestamp},
+          where: 'id = ?',
+          whereArgs: [userMap['id']],
+        );
+      });
+
+      // Transformamos el valor al formato legible despues de realizar la actualizacion atomica
+      userMap['last_access_date'] = _formatReadableDate(rawLastAccess);
+
       final User user = User.fromMap(userMap);
 
       // Verificacion de prefijo de codigo segun el rol del usuario o la pestaña
       if (isValidRoleCode(user.code, selectedRole) ||
           isValidRoleCode(user.code, user.role)) {
-
-        // Ejecucion transaccional atomica para conservar el acceso anterior y registrar el actual
-        await db.transaction((txn) async {
-          final String currentTimestamp = DateTime.now().toIso8601String();
-
-          await txn.update(
-            'users',
-            {'last_access_date': currentTimestamp},
-            where: 'id = ?',
-            whereArgs: [user.id],
-          );
-        });
-
         return user;
       }
     }
@@ -81,7 +115,13 @@ class UserService {
     );
 
     if (result.isNotEmpty) {
-      return User.fromMap(result.first);
+      final Map<String, dynamic> userMap = Map<String, dynamic>.from(
+        result.first,
+      );
+      userMap['last_access_date'] = _formatReadableDate(
+        userMap['last_access_date'] as String? ?? '',
+      );
+      return User.fromMap(userMap);
     }
     return null;
   }

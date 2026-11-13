@@ -5,7 +5,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../database/user_service.dart';
 import '../services/session_manager.dart';
 import '../services/system_sound_manager.dart';
-import '../services/notification_service.dart';
 import '../widgets/loading_dialog.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -106,7 +105,7 @@ class _LoginScreenState extends State<LoginScreen>
 
       if (diffSeconds > 0) {
         unlockDateTime = DateTime.fromMillisecondsSinceEpoch(lockoutEndTimeMs);
-        if (lockoutLevel >= lockoutDurationsMinutes.length - 1) {
+        if (lockoutLevel >= lockoutDurationsMinutes.length) {
           isPermanentlyBlocked24h = true;
         }
         emailController.clear();
@@ -209,7 +208,6 @@ class _LoginScreenState extends State<LoginScreen>
         'En caso de inicio de sesión fallido, debe esperar $currentDurationMin minutos y volver a intentarlo al finalizar el tiempo.',
         autoDismiss: true,
         duration: const Duration(seconds: 5),
-        playOpenSound: false,
         customIcon: const Icon(
           Icons.warning_amber_rounded,
           color: Color(0xFFFF9800),
@@ -250,7 +248,6 @@ class _LoginScreenState extends State<LoginScreen>
           subtitle: 'Inténtelo después de ${_formatUnlockDate(unlockTime)}',
           autoDismiss: true,
           duration: const Duration(seconds: 5),
-          playOpenSound: false,
           customSoundType: SystemSoundType.error,
           customIcon: const Icon(
             Icons.block_rounded,
@@ -321,7 +318,6 @@ class _LoginScreenState extends State<LoginScreen>
       title: 'Iniciando Sesión',
       subtitle: 'Validando credenciales...',
       autoDismiss: false,
-      playOpenSound: false,
       customIcon: const SizedBox(
         width: 40,
         height: 40,
@@ -346,10 +342,6 @@ class _LoginScreenState extends State<LoginScreen>
     if (user != null) {
       await _resetFullSecurityPolicy();
       await _saveUserDataPreference(email);
-      await SessionManager.saveSession(user.code);
-
-      // Registro persistente de notificacion de inicio de sesion exitoso
-      await NotificationService().notifyLoginSuccess(user.code);
 
       if (!mounted) return;
 
@@ -359,7 +351,6 @@ class _LoginScreenState extends State<LoginScreen>
         subtitle: 'Bienvenido de nuevo a Happiley',
         autoDismiss: true,
         duration: const Duration(seconds: 5),
-        playOpenSound: false,
         customSoundType: SystemSoundType.success,
         customIcon: const Icon(
           Icons.check_circle_rounded,
@@ -367,6 +358,10 @@ class _LoginScreenState extends State<LoginScreen>
           size: 56,
         ),
       );
+
+      if (!mounted) return;
+
+      await SessionManager.saveSession(user.code);
 
       if (!mounted) return;
 
@@ -384,7 +379,6 @@ class _LoginScreenState extends State<LoginScreen>
         subtitle: 'Contraseña incorrecta o correo no registrado.',
         autoDismiss: true,
         duration: const Duration(seconds: 5),
-        playOpenSound: false,
         customSoundType: SystemSoundType.error,
         customIcon: const Icon(
           Icons.cancel_rounded,

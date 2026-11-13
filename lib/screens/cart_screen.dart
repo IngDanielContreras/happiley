@@ -150,11 +150,15 @@ class _CartScreenState extends State<CartScreen> {
     List<Article>.from(CartManager.selectedArticles.value);
     final Map<int, int> quantitiesSnapshot = Map<int, int>.from(quantities);
 
-    final PurchaseExecutionResult result =
-    await _purchaseService.executePurchase(
-      articles: articlesSnapshot,
-      quantities: quantitiesSnapshot,
-    );
+    final results = await Future.wait([
+      _purchaseService.executePurchase(
+        articles: articlesSnapshot,
+        quantities: quantitiesSnapshot,
+      ),
+      Future.delayed(const Duration(seconds: 3)),
+    ]);
+
+    final PurchaseExecutionResult result = results[0] as PurchaseExecutionResult;
 
     if (!mounted) {
       _isProcessingPurchase = false;
@@ -191,6 +195,7 @@ class _CartScreenState extends State<CartScreen> {
         subtitle: 'Tu pedido ha sido procesado correctamente.',
         autoDismiss: true,
         duration: const Duration(seconds: 3),
+        customSoundType: SystemSoundType.success,
         customIcon: const Icon(
           Icons.check_circle_rounded,
           color: Color(0xFF4CAF50),
