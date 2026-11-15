@@ -16,11 +16,7 @@ class MainScreen extends StatefulWidget {
   final int initialIndex;
   final Database? database;
 
-  const MainScreen({
-    super.key,
-    this.database,
-    this.initialIndex = 0,
-  });
+  const MainScreen({super.key, this.database, this.initialIndex = 0});
 
   @override
   State<MainScreen> createState() => MainScreenState();
@@ -56,9 +52,7 @@ class MainScreenState extends State<MainScreen> {
       currentIndex = requestedIndex;
     }
 
-    pageController = PageController(
-      initialPage: currentIndex,
-    );
+    pageController = PageController(initialPage: currentIndex);
   }
 
   @override
@@ -88,7 +82,7 @@ class MainScreenState extends State<MainScreen> {
       message: 'Debes iniciar sesión para realizar esta acción.',
       confirmText: 'Iniciar Sesión',
       cancelText: 'Cancelar',
-      isConfirmDefault: true,
+      isConfirmDefault: false,
       onConfirm: () {
         _isAuthPromptOpen = false;
         _lastAuthPromptTime = DateTime.now();
@@ -158,10 +152,7 @@ class MainScreenState extends State<MainScreen> {
   }
 
   // Seleccion de un articulo especifico para visualizar sus detalles
-  void selectArticle(
-      Article article, {
-        List<Article>? articlesList,
-      }) {
+  void selectArticle(Article article, {List<Article>? articlesList}) {
     setState(() {
       selectedArticle = article;
 
@@ -271,34 +262,32 @@ class MainScreenState extends State<MainScreen> {
   Widget build(BuildContext context) {
     final Widget exploreOrDetailWidget = selectedArticle != null
         ? ArticleDetailScreen(
-      key: const ValueKey('article_detail_screen'),
-      article: selectedArticle!,
-      articlesList: availableArticles,
-      onBack: clearSelectedArticle,
-      onBuyNow: buyNowAndGoToCart,
-      onArticleChanged: (newArticle) {
-        setState(() {
-          selectedArticle = newArticle;
-        });
-      },
-    )
+            key: const ValueKey('article_detail_screen'),
+            article: selectedArticle!,
+            articlesList: availableArticles,
+            onBack: clearSelectedArticle,
+            onBuyNow: buyNowAndGoToCart,
+            onArticleChanged: (newArticle) {
+              setState(() {
+                selectedArticle = newArticle;
+              });
+            },
+          )
         : ExploreScreen(
-      key: ValueKey('explore_screen_$exploreKeyCounter'),
-      onCartPressed: () {
-        changeTab(2);
-      },
-      onHomePressed: () {
-        changeTab(0);
-      },
-      onArticleSelected: (article, articlesList) {
-        selectArticle(
-          article,
-          articlesList: articlesList,
-        );
-      },
-    );
+            key: ValueKey('explore_screen_$exploreKeyCounter'),
+            onCartPressed: () {
+              changeTab(2);
+            },
+            onHomePressed: () {
+              changeTab(0);
+            },
+            onArticleSelected: (article, articlesList) {
+              selectArticle(article, articlesList: articlesList);
+            },
+          );
 
-    final bool canSystemPop = currentIndex == 0 &&
+    final bool canSystemPop =
+        currentIndex == 0 &&
         selectedArticle == null &&
         !Navigator.canPop(context);
 
@@ -313,34 +302,34 @@ class MainScreenState extends State<MainScreen> {
           // Renderizado condicional del perfil de usuario o inicio de sesion
           final Widget profileOrLoginWidget = isAuthenticated
               ? ProfileScreen(
-            key: ValueKey('user_profile_$userCode'),
-            userCode: userCode,
-            onLogout: onLogout,
-            onPublishArticle: () {
-              setState(() {
-                currentIndex = 4;
-              });
-            },
-          )
+                  key: ValueKey('user_profile_$userCode'),
+                  userCode: userCode,
+                  onLogout: onLogout,
+                  onPublishArticle: () {
+                    setState(() {
+                      currentIndex = 4;
+                    });
+                  },
+                )
               : LoginScreen(
-            key: const Key('user_login_screen'),
-            onLoginSuccess: _handleLoginSuccess,
-          );
+                  key: const Key('user_login_screen'),
+                  onLoginSuccess: _handleLoginSuccess,
+                );
 
           // Renderizado protegido del carrito segun estado de autenticacion
           final Widget protectedCartWidget = isAuthenticated
               ? CartScreen(
-            key: const ValueKey('cart_screen'),
-            isActive: currentIndex == 2,
-          )
+                  key: const ValueKey('cart_screen'),
+                  isActive: currentIndex == 2,
+                )
               : CartScreen(
-            key: const ValueKey('cart_screen_restricted'),
-            isActive: currentIndex == 2,
-            onRequestLogin: () {
-              _pendingCartRedirect = true;
-              changeTab(3);
-            },
-          );
+                  key: const ValueKey('cart_screen_restricted'),
+                  isActive: currentIndex == 2,
+                  onRequestLogin: () {
+                    _pendingCartRedirect = true;
+                    changeTab(3);
+                  },
+                );
 
           return Scaffold(
             body: Stack(
@@ -384,11 +373,11 @@ class MainScreenState extends State<MainScreen> {
             ),
             bottomNavigationBar: currentIndex < 4
                 ? BottomNavigation(
-              selectedIndex: currentIndex,
-              onIndexChanged: (index) {
-                changeTab(index);
-              },
-            )
+                    selectedIndex: currentIndex,
+                    onIndexChanged: (index) {
+                      changeTab(index);
+                    },
+                  )
                 : null,
           );
         },

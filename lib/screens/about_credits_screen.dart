@@ -157,6 +157,27 @@ class AboutCreditsScreen extends StatelessWidget {
               ),
             ),
 
+            const SizedBox(height: 24),
+
+            const Text(
+              'Docente',
+              style: TextStyle(
+                fontSize: 14,
+                color: Color(0xFF657080),
+              ),
+            ),
+
+            const SizedBox(height: 6),
+
+            const Text(
+              'Darío García Ruiz',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+
             const SizedBox(height: 30),
           ],
         ),
