@@ -6,6 +6,7 @@ class User {
   final String documentNumber;
   final String email;
   final String role;
+  final String userType;
   final String? image;
   final String birthDate;
   final String registrationDate;
@@ -26,6 +27,7 @@ class User {
     required this.documentNumber,
     required this.email,
     required this.role,
+    this.userType = '',
     this.image,
     required this.birthDate,
     required this.registrationDate,
@@ -47,6 +49,7 @@ class User {
       documentNumber: map['document_number'] as String? ?? '',
       email: map['email'] as String? ?? '',
       role: map['role'] as String? ?? 'Visitante',
+      userType: map['user_type'] as String? ?? '',
       image: map['image'] as String?,
       birthDate: map['birth_date'] as String? ?? '',
       registrationDate: map['registration_date'] as String? ?? '',
@@ -69,6 +72,7 @@ class User {
       'document_number': documentNumber,
       'email': email,
       'role': role,
+      'user_type': userType,
       'image': image,
       'birth_date': birthDate,
       'registration_date': registrationDate,

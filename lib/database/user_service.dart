@@ -1,5 +1,6 @@
 import 'package:intl/intl.dart';
 import '../models/user.dart';
+import '../services/session_manager.dart';
 import 'article_service.dart';
 
 class UserService {
@@ -30,27 +31,62 @@ class UserService {
     return false;
   }
 
-  // Funcion auxiliar para formatear la fecha ISO en un texto legible y amigable
-  String _formatReadableDate(String isoDateString) {
-    if (isoDateString.isEmpty) return 'Primer acceso';
+  // Conversion de cadenas de fecha almacenadas a objeto DateTime
+  DateTime? _parseStoredDateTime(String rawValue) {
+    final trimmed = rawValue.trim();
+    if (trimmed.isEmpty) return null;
+
+    final DateTime? isoParsed = DateTime.tryParse(trimmed);
+    if (isoParsed != null) {
+      return isoParsed.toLocal();
+    }
+
+    final RegExp dmyPattern = RegExp(
+      r'^(\d{1,2})/(\d{1,2})/(\d{2,4})(?:[ T]+(\d{1,2}):(\d{2})(?::(\d{2}))?(?:\s*([AaPp]\.?[Mm]\.?))?)?$',
+    );
+    final match = dmyPattern.firstMatch(trimmed);
+    if (match != null) {
+      final int day = int.parse(match.group(1)!);
+      final int month = int.parse(match.group(2)!);
+      int year = int.parse(match.group(3)!);
+      if (year < 100) {
+        year += 2000;
+      }
+      int hour = match.group(4) != null ? int.parse(match.group(4)!) : 0;
+      final int minute =
+      match.group(5) != null ? int.parse(match.group(5)!) : 0;
+      final int second =
+      match.group(6) != null ? int.parse(match.group(6)!) : 0;
+      final String? meridiem = match.group(7)?.toUpperCase().replaceAll('.', '');
+
+      if (meridiem == 'PM' && hour < 12) {
+        hour += 12;
+      } else if (meridiem == 'AM' && hour == 12) {
+        hour = 0;
+      }
+
+      final DateTime candidate = DateTime(year, month, day, hour, minute, second);
+      if (candidate.year == year &&
+          candidate.month == month &&
+          candidate.day == day) {
+        return candidate;
+      }
+    }
+
+    return null;
+  }
+
+  // Formateo unificado de fecha en formato dd/MM/yyyy
+  String _formatUnifiedDate(String rawDateString, {String emptyFallback = ''}) {
+    if (rawDateString.trim().isEmpty) return emptyFallback;
 
     try {
-      final DateTime parsedDate = DateTime.parse(isoDateString);
-      final String formattedDate = DateFormat(
-        'dd/MM/yyyy',
-        'es_ES',
-      ).format(parsedDate);
-      final String formattedTime = DateFormat(
-        'h:mm a',
-        'en_US',
-      ).format(parsedDate);
+      final DateTime? parsedDate = _parseStoredDateTime(rawDateString);
+      if (parsedDate == null) return rawDateString;
 
-      final String period = formattedTime.endsWith('AM') ? 'a.m.' : 'p.m.';
-      final String time = formattedTime.replaceAll(RegExp(r' AM| PM'), '');
-
-      return '$formattedDate a las $time $period';
-    } catch (e) {
-      return isoDateString;
+      return DateFormat('dd/MM/yyyy').format(parsedDate);
+    } catch (_) {
+      return rawDateString;
     }
   }
 
@@ -74,8 +110,10 @@ class UserService {
         result.first,
       );
 
-      // Capturamos la fecha de acceso almacenada previamente (acceso anterior)
+      // Capturamos la fecha de acceso almacenada previamente
       final String rawLastAccess = userMap['last_access_date'] as String? ?? '';
+      final String rawBirthDate = userMap['birth_date'] as String? ?? '';
+      final String userCode = (userMap['code'] as String? ?? '').trim();
 
       // Ejecucion transaccional atomica para registrar el acceso actual antes de retornar
       await db.transaction((txn) async {
@@ -89,8 +127,16 @@ class UserService {
         );
       });
 
-      // Transformamos el valor al formato legible despues de realizar la actualizacion atomica
-      userMap['last_access_date'] = _formatReadableDate(rawLastAccess);
+      if (userCode.isNotEmpty) {
+        await SessionManager.savePreviousLastAccess(userCode, rawLastAccess);
+      }
+
+      // Transformamos las fechas al formato unificado dd/MM/yyyy
+      userMap['last_access_date'] = _formatUnifiedDate(
+        rawLastAccess,
+        emptyFallback: 'Primer acceso',
+      );
+      userMap['birth_date'] = _formatUnifiedDate(rawBirthDate);
 
       final User user = User.fromMap(userMap);
 
@@ -118,9 +164,19 @@ class UserService {
       final Map<String, dynamic> userMap = Map<String, dynamic>.from(
         result.first,
       );
-      userMap['last_access_date'] = _formatReadableDate(
-        userMap['last_access_date'] as String? ?? '',
+      final String userCode = (userMap['code'] as String? ?? '').trim();
+      final String? sessionPreviousAccess = userCode.isNotEmpty
+          ? await SessionManager.getPreviousLastAccess(userCode)
+          : null;
+      final String effectiveLastAccess =
+          sessionPreviousAccess ?? (userMap['last_access_date'] as String? ?? '');
+      final String rawBirthDate = userMap['birth_date'] as String? ?? '';
+
+      userMap['last_access_date'] = _formatUnifiedDate(
+        effectiveLastAccess,
+        emptyFallback: 'Primer acceso',
       );
+      userMap['birth_date'] = _formatUnifiedDate(rawBirthDate);
       return User.fromMap(userMap);
     }
     return null;
@@ -137,5 +193,88 @@ class UserService {
       where: 'code = ? OR id = ?',
       whereArgs: [searchVal, searchVal],
     );
+  }
+
+  // Verificacion de existencia de correo en otro registro de la base de datos
+  Future<bool> isEmailInUseByOtherUser({
+    required String email,
+    required String currentUserCode,
+  }) async {
+    final db = await _articleService.database;
+    final result = await db.query(
+      'users',
+      columns: ['id'],
+      where: 'LOWER(TRIM(email)) = ? AND UPPER(TRIM(code)) != ?',
+      whereArgs: [
+        email.trim().toLowerCase(),
+        currentUserCode.trim().toUpperCase(),
+      ],
+      limit: 1,
+    );
+    return result.isNotEmpty;
+  }
+
+  // Verificacion de existencia de documento en otro registro de la base de datos
+  Future<bool> isDocumentNumberInUseByOtherUser({
+    required String documentNumber,
+    required String currentUserCode,
+  }) async {
+    final db = await _articleService.database;
+    final result = await db.query(
+      'users',
+      columns: ['id'],
+      where: 'LOWER(TRIM(document_number)) = ? AND UPPER(TRIM(code)) != ?',
+      whereArgs: [
+        documentNumber.trim().toLowerCase(),
+        currentUserCode.trim().toUpperCase(),
+      ],
+      limit: 1,
+    );
+    return result.isNotEmpty;
+  }
+
+  // Actualizacion transaccional de los datos personales en la base de datos
+  Future<bool> updateUserEditableInfo({
+    required String userCode,
+    required String firstName,
+    required String lastName,
+    required String documentNumber,
+    required String email,
+    required String birthDate,
+  }) async {
+    final String cleanCode = userCode.trim();
+    final String cleanFirstName = firstName.trim();
+    final String cleanLastName = lastName.trim();
+    final String cleanDocumentNumber = documentNumber.trim();
+    final String cleanEmail = email.trim();
+    final String cleanBirthDate = birthDate.trim();
+
+    if (cleanCode.isEmpty ||
+        cleanFirstName.isEmpty ||
+        cleanLastName.isEmpty ||
+        cleanDocumentNumber.isEmpty ||
+        cleanEmail.isEmpty ||
+        cleanBirthDate.isEmpty) {
+      return false;
+    }
+
+    final db = await _articleService.database;
+
+    final int updatedRows = await db.transaction((txn) async {
+      return await txn.update(
+        'users',
+        {
+          'first_name': cleanFirstName,
+          'last_name': cleanLastName,
+          'document_number': cleanDocumentNumber,
+          'email': cleanEmail,
+          'birth_date': cleanBirthDate,
+        },
+        where: 'code = ?',
+        whereArgs: [cleanCode],
+      );
+    });
+
+    return updatedRows > 0;
   }
 }

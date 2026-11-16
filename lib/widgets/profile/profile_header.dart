@@ -1,141 +1,107 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../models/user.dart';
-import '../../services/system_sound_manager.dart';
+import '../../screens/image_viewer_screen.dart';
 
 class ProfileHeader extends StatelessWidget {
   final User user;
-  final VoidCallback onPickImage;
-  final VoidCallback onLogout;
 
   const ProfileHeader({
     super.key,
     required this.user,
-    required this.onPickImage,
-    required this.onLogout,
   });
 
-  // Obtencion de primer nombre y primer apellido
-  String _getFormattedName(String firstName, String lastName) {
-    final first = firstName.trim().split(' ').first;
-    final last = lastName.trim().split(' ').first;
-    return '$first $last';
+  // Obtencion del nombre completo del usuario
+  String _getFullName(String firstName, String lastName) {
+    final cleanFirst = firstName.trim();
+    final cleanLast = lastName.trim();
+    return '$cleanFirst $cleanLast'.trim();
   }
 
-  // Cuadro de dialogo para confirmar el cierre de sesion
-  Future<void> _showLogoutDialog(BuildContext context) async {
-    SystemSoundManager().playDialogOpen();
-
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (BuildContext dialogContext) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          title: const Text(
-            'Cerrar Sesión',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 18,
-            ),
-          ),
-          content: const Text(
-            '¿Está seguro de cerrar su sesión?',
-            style: TextStyle(fontSize: 14),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                SystemSoundManager().playDeniedNo();
-                Navigator.of(dialogContext).pop(false);
-              },
-              child: const Text(
-                'Cancelar',
-                style: TextStyle(
-                  color: Color(0xFF718096),
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.redAccent,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-              onPressed: () {
-                SystemSoundManager().playAcceptYes();
-                Navigator.of(dialogContext).pop(true);
-              },
-              child: const Text('Cerrar Sesión'),
-            ),
-          ],
-        );
-      },
-    );
-
-    // Si el usuario confirma, ejecuta el callback de salida
-    if (confirm == true) {
-      onLogout();
+  // Resolucion del proveedor de imagen para el avatar
+  ImageProvider<Object>? _resolveAvatarImage(String? imagePath) {
+    if (imagePath == null || imagePath.trim().isEmpty) {
+      return null;
     }
+
+    final String cleanPath = imagePath.trim();
+    if (cleanPath.startsWith('lib/assets/') ||
+        cleanPath.startsWith('assets/')) {
+      return AssetImage(cleanPath);
+    }
+
+    final File file = File(cleanPath);
+    if (file.existsSync()) {
+      return FileImage(file);
+    }
+
+    return null;
+  }
+
+  // Apertura del visor existente al pulsar la fotografia de perfil
+  void _openProfileImageViewer(BuildContext context) {
+    final String? rawPath = user.image;
+    if (rawPath == null || rawPath.trim().isEmpty) return;
+
+    final String cleanPath = rawPath.trim();
+    final bool isAsset = cleanPath.startsWith('lib/assets/') ||
+        cleanPath.startsWith('assets/');
+
+    if (!isAsset && !File(cleanPath).existsSync()) {
+      return;
+    }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ImageViewerScreen(imagePath: cleanPath),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Informacion de nombre y fechas
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                _getFormattedName(user.firstName, user.lastName),
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'Nacimiento: ${user.birthDate}',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: Colors.grey.shade700,
-                ),
-              ),
-              Text(
-                'Ultimo acceso: ${user.lastAccessDate}',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: Colors.grey.shade700,
-                ),
-              ),
-              const SizedBox(height: 10),
+    final ImageProvider<Object>? avatarImage = _resolveAvatarImage(user.image);
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
+    final Color subtitleColor =
+    isDark ? Colors.grey.shade400 : Colors.grey.shade700;
 
-              // Boton de cerrar sesion con confirmacion
-              ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.redAccent,
-                  foregroundColor: Colors.white,
-                  elevation: 0,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        // Fotografia de perfil con identificador de rol
+        GestureDetector(
+          onTap: () => _openProfileImageViewer(context),
+          child: Stack(
+            alignment: Alignment.bottomCenter,
+            children: [
+              CircleAvatar(
+                radius: 40,
+                backgroundColor: Colors.grey.shade300,
+                backgroundImage: avatarImage,
+                child: avatarImage == null
+                    ? const Icon(
+                  Icons.person,
+                  size: 40,
+                  color: Colors.white,
+                )
+                    : null,
+              ),
+              // Vista ovalada del rol
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 2,
                 ),
-                onPressed: () => _showLogoutDialog(context),
-                icon: const Icon(Icons.logout, size: 14),
-                label: const Text(
-                  'Cerrar Sesión',
-                  style: TextStyle(
-                    fontSize: 12,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2D2DA8),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  user.role,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 10,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -144,71 +110,43 @@ class ProfileHeader extends StatelessWidget {
           ),
         ),
 
-        const SizedBox(width: 12),
+        const SizedBox(width: 14),
 
-        // Imagen de usuario, identificador de rol y boton de carga
-        Column(
-          children: [
-            Stack(
-              alignment: Alignment.bottomCenter,
-              children: [
-                CircleAvatar(
-                  radius: 40,
-                  backgroundColor: Colors.grey.shade300,
-                  backgroundImage:
-                  user.image != null ? AssetImage(user.image!) : null,
-                  child: user.image == null
-                      ? const Icon(
-                    Icons.person,
-                    size: 40,
-                    color: Colors.white,
-                  )
-                      : null,
-                ),
-                // Vista ovalada del rol
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF2D2DA8),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    user.role,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-
-            // Boton rectangular de carga de foto
-            ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF5548F5),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 4,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(6),
+        // Nombre completo, fecha de nacimiento y ultimo acceso
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                _getFullName(user.firstName, user.lastName),
+                textAlign: TextAlign.left,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
-              onPressed: onPickImage,
-              icon: const Icon(Icons.camera_alt, size: 14),
-              label: const Text(
-                'Cargar Foto',
-                style: TextStyle(fontSize: 11),
+              const SizedBox(height: 6),
+              Text(
+                'Nacimiento: ${user.birthDate}',
+                textAlign: TextAlign.left,
+                style: TextStyle(
+                  fontSize: 12.5,
+                  color: subtitleColor,
+                ),
               ),
-            ),
-          ],
+              const SizedBox(height: 3),
+              Text(
+                'Último acceso: ${user.lastAccessDate}',
+                textAlign: TextAlign.left,
+                style: TextStyle(
+                  fontSize: 12.5,
+                  color: subtitleColor,
+                ),
+              ),
+            ],
+          ),
         ),
       ],
     );

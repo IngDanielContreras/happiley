@@ -109,6 +109,7 @@ class CartItemCard extends StatelessWidget {
           confirmText: 'Sí',
           cancelText: 'No',
           isConfirmDefault: false,
+          playConfirmSound: false,
           onConfirm: () {
             shouldDelete = true;
           },
@@ -244,6 +245,7 @@ class CartItemCard extends StatelessWidget {
                           confirmText: 'Sí',
                           cancelText: 'No',
                           isConfirmDefault: false,
+                          playConfirmSound: false,
                           onConfirm: () async {
                             onRemove();
                             await _showDeleteLoadingDialog(context);

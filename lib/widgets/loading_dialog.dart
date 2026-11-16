@@ -84,10 +84,6 @@ class _LoadingDialogState extends State<LoadingDialog>
       return;
     }
 
-    if (widget.playOpenSound) {
-      soundManager.playDialogOpen();
-    }
-
     if (widget.isExitDialog) {
       soundManager.playExit();
       return;
@@ -100,6 +96,7 @@ class _LoadingDialogState extends State<LoadingDialog>
           iconData == Icons.check_circle ||
           iconData == Icons.check) {
         soundManager.playSuccess();
+        return;
       } else if (iconData == Icons.cancel_rounded ||
           iconData == Icons.cancel ||
           iconData == Icons.error_rounded ||
@@ -108,11 +105,17 @@ class _LoadingDialogState extends State<LoadingDialog>
           iconData == Icons.block_rounded ||
           iconData == Icons.remove_shopping_cart_rounded) {
         soundManager.playError();
+        return;
       } else if (iconData == Icons.warning_amber_rounded ||
           iconData == Icons.warning_rounded ||
           iconData == Icons.warning) {
         soundManager.playAlert();
+        return;
       }
+    }
+
+    if (widget.playOpenSound) {
+      soundManager.playDialogOpen();
     }
   }
 
@@ -181,7 +184,7 @@ class _LoadingDialogState extends State<LoadingDialog>
             borderRadius: BorderRadius.circular(22),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF5548F5).withOpacity(0.1 + progress * 0.2),
+                color: const Color(0xFF5548F5).withValues(alpha: 0.1 + progress * 0.2),
                 spreadRadius: 2 + progress * 4,
                 blurRadius: 8 + progress * 8,
               ),
@@ -214,6 +217,14 @@ class _LoadingDialogState extends State<LoadingDialog>
 
   @override
   Widget build(BuildContext context) {
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
+    final Color dialogBackground =
+    isDark ? const Color(0xFF252834) : const Color(0xFFE6E8EF);
+    final Color titleColor =
+    isDark ? const Color(0xFFF1F3F9) : const Color(0xFF181B24);
+    final Color subtitleColor =
+    isDark ? const Color(0xFFC7CDDC) : const Color(0xFF373D4D);
+
     final Widget iconToDisplay = widget.customIcon != null
         ? ScaleTransition(
       scale: _scaleAnimation,
@@ -222,6 +233,8 @@ class _LoadingDialogState extends State<LoadingDialog>
         : _buildAnimatedLogo();
 
     return AlertDialog(
+      backgroundColor: dialogBackground,
+      surfaceTintColor: Colors.transparent,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
       ),
@@ -234,19 +247,19 @@ class _LoadingDialogState extends State<LoadingDialog>
           Text(
             widget.title,
             textAlign: TextAlign.center,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 17,
               fontWeight: FontWeight.bold,
-              color: Color(0xFF20242B),
+              color: titleColor,
             ),
           ),
           const SizedBox(height: 8),
           Text(
             widget.subtitle,
             textAlign: TextAlign.center,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 13,
-              color: Color(0xFF718096),
+              color: subtitleColor,
             ),
           ),
         ],

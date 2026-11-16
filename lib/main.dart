@@ -52,6 +52,23 @@ class MyApp extends StatelessWidget {
               seedColor: const Color(0xFF5548F5),
               brightness: Brightness.light,
             ),
+            dialogTheme: const DialogThemeData(
+              backgroundColor: Color(0xFFE6E8EF),
+              surfaceTintColor: Colors.transparent,
+              elevation: 6,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.all(Radius.circular(16)),
+              ),
+              titleTextStyle: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF181B24),
+              ),
+              contentTextStyle: TextStyle(
+                fontSize: 14,
+                color: Color(0xFF373D4D),
+              ),
+            ),
           ),
 
           // Definicion del tema oscuro para soporte en toda la interfaz
@@ -63,6 +80,23 @@ class MyApp extends StatelessWidget {
             colorScheme: ColorScheme.fromSeed(
               seedColor: const Color(0xFF5548F5),
               brightness: Brightness.dark,
+            ),
+            dialogTheme: const DialogThemeData(
+              backgroundColor: Color(0xFF252834),
+              surfaceTintColor: Colors.transparent,
+              elevation: 6,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.all(Radius.circular(16)),
+              ),
+              titleTextStyle: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFFF1F3F9),
+              ),
+              contentTextStyle: TextStyle(
+                fontSize: 14,
+                color: Color(0xFFC7CDDC),
+              ),
             ),
           ),
 

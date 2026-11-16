@@ -268,6 +268,7 @@ class HomeContent extends StatelessWidget {
                           confirmText: 'Sí',
                           cancelText: 'No',
                           isConfirmDefault: false,
+                          playConfirmSound: false,
                           onConfirm: () {
                             onExitApp();
                           },

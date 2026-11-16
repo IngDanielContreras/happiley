@@ -42,6 +42,9 @@ class SystemSoundManager with WidgetsBindingObserver {
   int _pendingNotificationCount = 0;
   bool _isPlayingNotificationQueue = false;
   Completer<void>? _currentNotificationCompleter;
+  int _uiPlaybackRequestId = 0;
+  int _activeUiPriority = 0;
+  bool _isFeedbackActive = false;
 
   Timer? _dialogSafetyTimer;
   Timer? _feedbackSafetyTimer;
@@ -74,6 +77,26 @@ class SystemSoundManager with WidgetsBindingObserver {
     'lib/assets/music/system_sounds/notification_sound.m4a',
   };
 
+  int _priorityFor(SystemSoundType type) {
+    switch (type) {
+      case SystemSoundType.dialogOpen:
+        return 1;
+      case SystemSoundType.acceptYes:
+      case SystemSoundType.deniedNo:
+        return 2;
+      case SystemSoundType.addArticle:
+      case SystemSoundType.removeArticle:
+      case SystemSoundType.alert:
+      case SystemSoundType.success:
+      case SystemSoundType.error:
+        return 3;
+      case SystemSoundType.exitApp:
+        return 4;
+      case SystemSoundType.notification:
+        return 0;
+    }
+  }
+
   Future<void> _initPlayers() async {
     final context = AudioContext(
       android: const AudioContextAndroid(
@@ -104,6 +127,8 @@ class SystemSoundManager with WidgetsBindingObserver {
     });
 
     _feedbackCompleteSub = _feedbackPlayer.onPlayerComplete.listen((_) {
+      _isFeedbackActive = false;
+      _activeUiPriority = 0;
       _releaseFeedbackDuck();
     });
 
@@ -142,6 +167,8 @@ class SystemSoundManager with WidgetsBindingObserver {
       MusicManager().requestDuck();
     }
     _feedbackSafetyTimer = Timer(const Duration(seconds: 4), () {
+      _isFeedbackActive = false;
+      _activeUiPriority = 0;
       _releaseFeedbackDuck();
     });
   }
@@ -234,6 +261,18 @@ class SystemSoundManager with WidgetsBindingObserver {
     }
   }
 
+  Future<void> _stopDialogPlayerSilently() async {
+    try {
+      if (_dialogOpenPlayer.state == PlayerState.playing ||
+          _dialogOpenPlayer.state == PlayerState.paused) {
+        await _dialogOpenPlayer.stop();
+      }
+    } catch (_) {
+    } finally {
+      _releaseDialogDuck();
+    }
+  }
+
   // Ejecucion del sonido aplicando el volumen porcentual configurado
   Future<void> playSound(SystemSoundType type) async {
     if (type == SystemSoundType.notification) {
@@ -244,11 +283,32 @@ class SystemSoundManager with WidgetsBindingObserver {
     final int currentPercent = volumePercentNotifier.value;
     if (currentPercent <= 0) return;
 
+    final int incomingPriority = _priorityFor(type);
+    final bool isFeedbackBusy =
+        _isFeedbackActive || _feedbackPlayer.state == PlayerState.playing;
+
+    if (isFeedbackBusy && incomingPriority < _activeUiPriority) {
+      return;
+    }
+
+    final int requestId = ++_uiPlaybackRequestId;
+    final bool isDialogSound = type == SystemSoundType.dialogOpen;
+
+    if (!isDialogSound) {
+      _isFeedbackActive = true;
+      _activeUiPriority = incomingPriority;
+    }
+
     final Uint8List? bytes = await _loadSoundBytes(type);
-    if (bytes == null) return;
+    if (bytes == null || requestId != _uiPlaybackRequestId) {
+      if (!isDialogSound && requestId == _uiPlaybackRequestId) {
+        _isFeedbackActive = false;
+        _activeUiPriority = 0;
+      }
+      return;
+    }
 
     final double volume = currentPercent / 100.0;
-    final bool isDialogSound = type == SystemSoundType.dialogOpen;
     final AudioPlayer targetPlayer =
     isDialogSound ? _dialogOpenPlayer : _feedbackPlayer;
 
@@ -256,6 +316,8 @@ class SystemSoundManager with WidgetsBindingObserver {
       if (isDialogSound) {
         _acquireDialogDuck();
       } else {
+        await _stopDialogPlayerSilently();
+        if (requestId != _uiPlaybackRequestId) return;
         _acquireFeedbackDuck();
       }
 
@@ -263,14 +325,22 @@ class SystemSoundManager with WidgetsBindingObserver {
           targetPlayer.state == PlayerState.paused) {
         await targetPlayer.stop();
       }
+      if (requestId != _uiPlaybackRequestId) return;
+
       await targetPlayer.release();
+      if (requestId != _uiPlaybackRequestId) return;
+
       await targetPlayer.setReleaseMode(ReleaseMode.stop);
       await targetPlayer.setVolume(volume);
+      if (requestId != _uiPlaybackRequestId) return;
+
       await targetPlayer.play(BytesSource(bytes));
     } catch (e) {
       if (isDialogSound) {
         _releaseDialogDuck();
       } else {
+        _isFeedbackActive = false;
+        _activeUiPriority = 0;
         _releaseFeedbackDuck();
       }
       debugPrint('Error al reproducir sonido del sistema ($type): $e');
@@ -347,6 +417,9 @@ class SystemSoundManager with WidgetsBindingObserver {
 
   // Detencion de todos los reproductores activos del sistema
   Future<void> stopAllSystemSounds() async {
+    _uiPlaybackRequestId++;
+    _isFeedbackActive = false;
+    _activeUiPriority = 0;
     _pendingNotificationCount = 0;
     if (_currentNotificationCompleter != null &&
         !_currentNotificationCompleter!.isCompleted) {
