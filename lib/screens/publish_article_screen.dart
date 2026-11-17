@@ -8,7 +8,11 @@ import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart' as p;
 import 'image_viewer_screen.dart';
+import '../database/article_service.dart';
+import '../models/article.dart';
 import '../services/app_utils.dart';
+import '../services/cart_manager.dart';
+import '../services/saved_items_manager.dart';
 import '../services/session_manager.dart';
 import '../services/notification_service.dart';
 import '../services/system_sound_manager.dart';
@@ -20,12 +24,16 @@ class PublishArticleScreen extends StatefulWidget {
   final Database? database;
   final VoidCallback? onBack;
   final VoidCallback? onArticlePublished;
+  final Article? articleToEdit;
+  final VoidCallback? onArticleUpdated;
 
   const PublishArticleScreen({
     super.key,
     this.database,
     this.onBack,
     this.onArticlePublished,
+    this.articleToEdit,
+    this.onArticleUpdated,
   });
 
   @override
@@ -55,17 +63,64 @@ class _PublishArticleScreenState extends State<PublishArticleScreen> {
   String _formattedPricePreview = '';
 
   File? _selectedImageFile;
+  String? _existingImagePath;
   final ImagePicker _picker = ImagePicker();
 
   bool _isHandlingBack = false;
+
+  bool get _isEditMode => widget.articleToEdit != null;
 
   @override
   void initState() {
     super.initState();
 
-    _quillController = QuillController.basic();
     _descriptionFocusNode = FocusNode();
     _descriptionScrollController = ScrollController();
+
+    final Article? editingArticle = widget.articleToEdit;
+    if (editingArticle != null) {
+      _preloadArticleData(editingArticle);
+    } else {
+      _quillController = QuillController.basic();
+    }
+  }
+
+  // Precarga completa de los datos reales del articulo seleccionado para edicion
+  void _preloadArticleData(Article article) {
+    final prefixMatch =
+    RegExp(r'^[A-Za-z]{1,3}').firstMatch(article.code.trim());
+    _prefixController.text =
+    prefixMatch != null ? prefixMatch.group(0)!.toUpperCase() : 'IAR';
+
+    _nameController.text = article.name;
+
+    final String priceDigits = article.salePrice % 1 == 0
+        ? article.salePrice.toStringAsFixed(0)
+        : article.salePrice.toString();
+    _salePriceController.text = priceDigits;
+    _formattedPricePreview = AppUtils.formatPrice(article.salePrice);
+
+    _stockController.text = article.stock.toString();
+    _reorderController.text = article.unitsUntilReorder.toString();
+    _supportEndDateController.text = article.supportEndDate;
+    _existingImagePath = article.image;
+
+    Document initialDoc;
+    try {
+      final decoded = jsonDecode(article.description);
+      if (decoded is List) {
+        initialDoc = Document.fromJson(decoded);
+      } else {
+        initialDoc = Document()..insert(0, '${article.description}\n');
+      }
+    } catch (_) {
+      initialDoc = Document()..insert(0, '${article.description}\n');
+    }
+
+    _quillController = QuillController(
+      document: initialDoc,
+      selection: const TextSelection.collapsed(offset: 0),
+    );
   }
 
   @override
@@ -132,15 +187,16 @@ class _PublishArticleScreenState extends State<PublishArticleScreen> {
     });
   }
 
-  // Visualizacion en detalle de la imagen seleccionada
+  // Visualizacion en detalle de la imagen seleccionada o existente
   void _openImageViewer() {
-    if (_selectedImageFile == null) return;
+    final String? previewPath = _selectedImageFile?.path ?? _existingImagePath;
+    if (previewPath == null || previewPath.trim().isEmpty) return;
 
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) =>
-            ImageViewerScreen(imagePath: _selectedImageFile!.path),
+            ImageViewerScreen(imagePath: previewPath),
       ),
     );
   }
@@ -159,7 +215,9 @@ class _PublishArticleScreenState extends State<PublishArticleScreen> {
       if (mounted) {
         await LoadingDialog.show(
           context,
-          title: '¡Artículo No Publicado!',
+          title: _isEditMode
+              ? '¡Artículo No Actualizado!'
+              : '¡Artículo No Publicado!',
           subtitle: 'Error al registrar el artículo: $e',
           autoDismiss: true,
           duration: const Duration(seconds: 5),
@@ -216,9 +274,13 @@ class _PublishArticleScreenState extends State<PublishArticleScreen> {
 
   // Selector de la fecha de garantia o soporte
   Future<void> _selectDate() async {
+    final DateTime initialDate =
+        DateTime.tryParse(_supportEndDateController.text.trim()) ??
+            DateTime.now();
+
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: DateTime.now(),
+      initialDate: initialDate,
       firstDate: DateTime(2020),
       lastDate: DateTime(2035),
       builder: (context, child) {
@@ -260,6 +322,7 @@ class _PublishArticleScreenState extends State<PublishArticleScreen> {
 
     setState(() {
       _selectedImageFile = null;
+      _existingImagePath = null;
       _formattedPricePreview = '';
       _expansionTilesKey = UniqueKey();
     });
@@ -329,7 +392,7 @@ class _PublishArticleScreenState extends State<PublishArticleScreen> {
     }
   }
 
-  // Solicitud de confirmacion mediante alerta antes de publicar
+  // Solicitud de confirmacion mediante alerta antes de publicar o actualizar
   void _confirmPublishArticle() {
     FocusScope.of(context).unfocus();
 
@@ -339,15 +402,20 @@ class _PublishArticleScreenState extends State<PublishArticleScreen> {
     final String plainTextDescription =
     _quillController.document.toPlainText().trim();
 
-    if (!isFormValid ||
-        _selectedImageFile == null ||
-        plainTextDescription.isEmpty) {
+    final bool hasImage = _selectedImageFile != null ||
+        (_existingImagePath != null && _existingImagePath!.trim().isNotEmpty);
+
+    if (!isFormValid || !hasImage || plainTextDescription.isEmpty) {
       const String validationError =
           'Debe completar todos los campos obligatorios, ingresar la descripción y seleccionar una imagen.';
-      _registerFailedPublishNotification(validationError);
+      if (!_isEditMode) {
+        _registerFailedPublishNotification(validationError);
+      }
       LoadingDialog.show(
         context,
-        title: '¡Artículo No Publicado!',
+        title: _isEditMode
+            ? '¡Artículo No Actualizado!'
+            : '¡Artículo No Publicado!',
         subtitle: validationError,
         autoDismiss: true,
         duration: const Duration(seconds: 5),
@@ -362,17 +430,299 @@ class _PublishArticleScreenState extends State<PublishArticleScreen> {
 
     AlertMessage.show(
       context: context,
-      title: 'Confirmar Publicación',
-      message: '¿Desea realizar la publicación?',
+      title: _isEditMode ? 'Confirmar Actualización' : 'Confirmar Publicación',
+      message: _isEditMode
+          ? '¿Desea guardar los cambios del artículo?'
+          : '¿Desea realizar la publicación?',
       confirmText: 'Sí',
       cancelText: 'No',
       isConfirmDefault: false,
-      onConfirm: _publishArticle,
+      onConfirm: _isEditMode ? _updateArticle : _publishArticle,
     );
+  }
+
+  // Actualizacion segura del registro existente validando propiedad del vendedor
+  Future<void> _updateArticle() async {
+    final Article? originalArticle = widget.articleToEdit;
+    if (originalArticle == null) return;
+
+    final String? rawUserCode = SessionManager.activeUserCode.value;
+    if (!SessionManager.isLoggedIn ||
+        rawUserCode == null ||
+        rawUserCode.trim().isEmpty) {
+      await LoadingDialog.show(
+        context,
+        title: '¡Artículo No Actualizado!',
+        subtitle: 'Debes iniciar sesión como vendedor para editar artículos.',
+        autoDismiss: true,
+        duration: const Duration(seconds: 4),
+        customSoundType: SystemSoundType.error,
+        customIcon: const Icon(
+          Icons.cancel_rounded,
+          color: Color(0xFFE53935),
+          size: 56,
+        ),
+      );
+      return;
+    }
+
+    final String normalizedUserCode = rawUserCode.trim().toUpperCase();
+
+    await LoadingDialog.show(
+      context,
+      title: 'Actualizando Artículo.',
+      subtitle: 'Guardando cambios...',
+      autoDismiss: true,
+      duration: const Duration(seconds: 3),
+      customIcon: const SizedBox(
+        width: 40,
+        height: 40,
+        child: CircularProgressIndicator(
+          valueColor: AlwaysStoppedAnimation<Color>(
+            Color(0xFF5346E0),
+          ),
+          strokeWidth: 3.5,
+        ),
+      ),
+    );
+
+    if (!mounted) return;
+
+    try {
+      final db = await _getDatabase();
+      final articleService = ArticleService();
+      await articleService.ensureSellerOwnershipSchema(db);
+
+      final ownedRows = await db.query(
+        'articles',
+        columns: ['id', 'image'],
+        where: 'id = ? AND UPPER(TRIM(seller_code)) = ?',
+        whereArgs: [originalArticle.id, normalizedUserCode],
+        limit: 1,
+      );
+
+      if (ownedRows.isEmpty) {
+        if (!mounted) return;
+        await LoadingDialog.show(
+          context,
+          title: '¡Artículo No Actualizado!',
+          subtitle:
+          'No tienes autorización para modificar este artículo o ya no existe.',
+          autoDismiss: true,
+          duration: const Duration(seconds: 4),
+          customSoundType: SystemSoundType.error,
+          customIcon: const Icon(
+            Icons.cancel_rounded,
+            color: Color(0xFFE53935),
+            size: 56,
+          ),
+        );
+        return;
+      }
+
+      String prefix = _prefixController.text.trim().toUpperCase();
+      if (prefix.length != 3) {
+        prefix = 'IAR';
+      }
+
+      final String numericSuffix = originalArticle.code
+          .trim()
+          .replaceFirst(RegExp(r'^[A-Za-z]+'), '');
+      final String updatedCode = numericSuffix.isNotEmpty
+          ? '$prefix$numericSuffix'
+          : originalArticle.code;
+
+      final String? previousImagePath =
+          ownedRows.first['image']?.toString() ?? originalArticle.image;
+      String? finalImagePath = previousImagePath;
+
+      if (_selectedImageFile != null) {
+        final Directory appDir = await getApplicationDocumentsDirectory();
+        final Directory targetDir = Directory(
+          p.join(appDir.path, 'articles_images'),
+        );
+
+        if (!await targetDir.exists()) {
+          await targetDir.create(recursive: true);
+        }
+
+        final String fileExtension =
+        p.extension(_selectedImageFile!.path).isEmpty
+            ? '.png'
+            : p.extension(_selectedImageFile!.path);
+
+        final String timestamp =
+        DateTime.now().millisecondsSinceEpoch.toString();
+        final String finalFileName = '${updatedCode}_$timestamp$fileExtension';
+        final String internalSavedPath = p.join(targetDir.path, finalFileName);
+
+        await _selectedImageFile!.copy(internalSavedPath);
+        finalImagePath = internalSavedPath;
+      }
+
+      final cleanPriceString = _salePriceController.text.trim().replaceAll(
+        RegExp(r'[^0-9.]'),
+        '',
+      );
+      final double? numericSalePrice = double.tryParse(cleanPriceString);
+
+      if (numericSalePrice == null) {
+        if (!mounted) return;
+        await LoadingDialog.show(
+          context,
+          title: '¡Artículo No Actualizado!',
+          subtitle: 'Ingresa un precio válido.',
+          autoDismiss: true,
+          duration: const Duration(seconds: 4),
+          customSoundType: SystemSoundType.error,
+          customIcon: const Icon(
+            Icons.cancel_rounded,
+            color: Color(0xFFE53935),
+            size: 56,
+          ),
+        );
+        return;
+      }
+
+      final String richTextJson = jsonEncode(
+        _quillController.document.toDelta().toJson(),
+      );
+      final String articleName = _nameController.text.trim();
+      final int updatedStock = int.parse(_stockController.text.trim());
+      final int updatedReorder = int.parse(_reorderController.text.trim());
+      final String updatedSupportDate = _supportEndDateController.text.trim();
+
+      final int updatedRows = await db.update(
+        'articles',
+        {
+          'code': updatedCode,
+          'name': articleName,
+          'description': richTextJson,
+          'sale_price': numericSalePrice,
+          'stock': updatedStock,
+          'units_until_reorder': updatedReorder,
+          'support_end_date': updatedSupportDate,
+          'image': finalImagePath,
+        },
+        where: 'id = ? AND UPPER(TRIM(seller_code)) = ?',
+        whereArgs: [originalArticle.id, normalizedUserCode],
+      );
+
+      if (updatedRows <= 0) {
+        if (!mounted) return;
+        await LoadingDialog.show(
+          context,
+          title: '¡Artículo No Actualizado!',
+          subtitle: 'No se pudieron guardar los cambios en la base de datos.',
+          autoDismiss: true,
+          duration: const Duration(seconds: 4),
+          customSoundType: SystemSoundType.error,
+          customIcon: const Icon(
+            Icons.cancel_rounded,
+            color: Color(0xFFE53935),
+            size: 56,
+          ),
+        );
+        return;
+      }
+
+      if (_selectedImageFile != null &&
+          previousImagePath != null &&
+          previousImagePath != finalImagePath) {
+        await articleService.deleteUnreferencedLocalImage(
+          db,
+          previousImagePath,
+        );
+      }
+
+      final Article updatedArticle = Article(
+        id: originalArticle.id,
+        code: updatedCode,
+        name: articleName,
+        description: richTextJson,
+        purchasePrice: originalArticle.purchasePrice,
+        salePrice: numericSalePrice,
+        stock: updatedStock,
+        purchaseDate: originalArticle.purchaseDate,
+        saleDate: originalArticle.saleDate,
+        unitsUntilReorder: updatedReorder,
+        supportEndDate: updatedSupportDate,
+        image: finalImagePath,
+        sellerCode: normalizedUserCode,
+      );
+
+      CartManager.selectedArticles.value = CartManager.selectedArticles.value
+          .map((item) => item.id == updatedArticle.id ? updatedArticle : item)
+          .toList();
+
+      SavedItemsManager.savedArticles.value = SavedItemsManager
+          .savedArticles.value
+          .map((item) => item.id == updatedArticle.id ? updatedArticle : item)
+          .toList();
+
+      if (!mounted) return;
+
+      await LoadingDialog.show(
+        context,
+        title: '¡Artículo Actualizado Exitosamente!',
+        subtitle: 'Los cambios se han guardado.',
+        autoDismiss: true,
+        duration: const Duration(seconds: 3),
+        customSoundType: SystemSoundType.success,
+        customIcon: const Icon(
+          Icons.check_circle_rounded,
+          color: Color(0xFF4CAF50),
+          size: 56,
+        ),
+      );
+
+      if (!mounted) return;
+
+      if (widget.onArticleUpdated != null) {
+        widget.onArticleUpdated!();
+      }
+      _handleBack();
+    } catch (e) {
+      if (!mounted) return;
+      await LoadingDialog.show(
+        context,
+        title: '¡Artículo No Actualizado!',
+        subtitle: 'Error al actualizar el artículo: $e',
+        autoDismiss: true,
+        duration: const Duration(seconds: 4),
+        customSoundType: SystemSoundType.error,
+        customIcon: const Icon(
+          Icons.cancel_rounded,
+          color: Color(0xFFE53935),
+          size: 56,
+        ),
+      );
+    }
   }
 
   // Guardado en happiley.db y almacenamiento de la descripcion con texto enriquecido
   Future<void> _publishArticle() async {
+    final String? rawUserCode = SessionManager.activeUserCode.value;
+    if (!SessionManager.isLoggedIn ||
+        rawUserCode == null ||
+        rawUserCode.trim().isEmpty) {
+      await LoadingDialog.show(
+        context,
+        title: '¡Artículo No Publicado!',
+        subtitle: 'Debes iniciar sesión como vendedor para publicar artículos.',
+        autoDismiss: true,
+        duration: const Duration(seconds: 5),
+        customIcon: const Icon(
+          Icons.cancel_rounded,
+          color: Color(0xFFE53935),
+          size: 56,
+        ),
+      );
+      return;
+    }
+
+    final String normalizedSellerCode = rawUserCode.trim().toUpperCase();
+
     await LoadingDialog.show(
       context,
       title: 'Publicando Artículo.',
@@ -395,6 +745,7 @@ class _PublishArticleScreenState extends State<PublishArticleScreen> {
 
     try {
       final db = await _getDatabase();
+      await ArticleService().ensureSellerOwnershipSchema(db);
 
       // Obtencion del consecutivo actual de la base de datos
       final countQuery = await db.rawQuery(
@@ -522,6 +873,7 @@ class _PublishArticleScreenState extends State<PublishArticleScreen> {
         'support_end_date':
         _supportEndDateController.text.trim(),
         'image': relativeImagePath,
+        'seller_code': normalizedSellerCode,
       });
 
       final String? userCode = SessionManager.activeUserCode.value;
@@ -575,6 +927,67 @@ class _PublishArticleScreenState extends State<PublishArticleScreen> {
         ),
       );
     }
+  }
+
+  // Vista previa adaptativa de imagen local o recurso empaquetado
+  Widget _buildImagePreviewWidget() {
+    if (_selectedImageFile != null) {
+      return Image.file(
+        _selectedImageFile!,
+        height: 200,
+        width: double.infinity,
+        fit: BoxFit.cover,
+      );
+    }
+
+    final String? cleanPath = _existingImagePath?.trim();
+    if (cleanPath == null || cleanPath.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    if (cleanPath.startsWith('lib/assets/') || cleanPath.startsWith('assets/')) {
+      return Image.asset(
+        cleanPath,
+        height: 200,
+        width: double.infinity,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) => const SizedBox(
+          height: 200,
+          child: Center(
+            child: Icon(Icons.broken_image, size: 48, color: Colors.grey),
+          ),
+        ),
+      );
+    }
+
+    final file = File(cleanPath);
+    if (cleanPath.startsWith('/') || file.existsSync()) {
+      return Image.file(
+        file,
+        height: 200,
+        width: double.infinity,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) => const SizedBox(
+          height: 200,
+          child: Center(
+            child: Icon(Icons.broken_image, size: 48, color: Colors.grey),
+          ),
+        ),
+      );
+    }
+
+    return Image.asset(
+      cleanPath,
+      height: 200,
+      width: double.infinity,
+      fit: BoxFit.cover,
+      errorBuilder: (context, error, stackTrace) => const SizedBox(
+        height: 200,
+        child: Center(
+          child: Icon(Icons.broken_image, size: 48, color: Colors.grey),
+        ),
+      ),
+    );
   }
 
   // Construccion de la etiqueta exterior para campos con indicador obligatorio
@@ -718,6 +1131,8 @@ class _PublishArticleScreenState extends State<PublishArticleScreen> {
   @override
   Widget build(BuildContext context) {
     const primaryColor = Color(0xFF5346E0);
+    final bool hasPreviewImage = _selectedImageFile != null ||
+        (_existingImagePath != null && _existingImagePath!.trim().isNotEmpty);
 
     return GestureDetector(
       onTap: () => FocusScope.of(context).unfocus(),
@@ -734,18 +1149,18 @@ class _PublishArticleScreenState extends State<PublishArticleScreen> {
             ),
             onPressed: _handleBack,
           ),
-          title: const Column(
+          title: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Publicar Nuevo Artículo',
-                style: TextStyle(
+                _isEditMode ? 'Editar Artículo' : 'Publicar Nuevo Artículo',
+                style: const TextStyle(
                   color: Colors.white,
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              Text(
+              const Text(
                 'Panel de Vendedor',
                 style: TextStyle(
                   color: Colors.white70,
@@ -771,17 +1186,12 @@ class _PublishArticleScreenState extends State<PublishArticleScreen> {
                     'Selecciona una imagen desde tu galería o cámara',
                     child: Column(
                       children: [
-                        if (_selectedImageFile != null) ...[
+                        if (hasPreviewImage) ...[
                           GestureDetector(
                             onTap: _openImageViewer,
                             child: ClipRRect(
                               borderRadius: BorderRadius.circular(12),
-                              child: Image.file(
-                                _selectedImageFile!,
-                                height: 200,
-                                width: double.infinity,
-                                fit: BoxFit.cover,
-                              ),
+                              child: _buildImagePreviewWidget(),
                             ),
                           ),
                           const SizedBox(height: 12),
@@ -791,13 +1201,13 @@ class _PublishArticleScreenState extends State<PublishArticleScreen> {
                           child: ElevatedButton.icon(
                             onPressed: _showImageSourceDialog,
                             icon: Icon(
-                              _selectedImageFile == null
+                              !hasPreviewImage
                                   ? Icons.add_a_photo
                                   : Icons.refresh,
                               color: Colors.white,
                             ),
                             label: Text(
-                              _selectedImageFile == null
+                              !hasPreviewImage
                                   ? 'Seleccionar Imagen de la Galería / Cámara'
                                   : 'Reemplazar Imagen',
                               style: const TextStyle(
@@ -1145,13 +1555,15 @@ class _PublishArticleScreenState extends State<PublishArticleScreen> {
                         Expanded(
                           child: ElevatedButton.icon(
                             onPressed: _confirmPublishArticle,
-                            icon: const Icon(
-                              Icons.send,
+                            icon: Icon(
+                              _isEditMode ? Icons.save_outlined : Icons.send,
                               color: Colors.white,
                             ),
-                            label: const Text(
-                              'Publicar Artículo',
-                              style: TextStyle(color: Colors.white),
+                            label: Text(
+                              _isEditMode
+                                  ? 'Actualizar Artículo'
+                                  : 'Publicar Artículo',
+                              style: const TextStyle(color: Colors.white),
                             ),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: primaryColor,

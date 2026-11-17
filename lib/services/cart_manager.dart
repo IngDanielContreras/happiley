@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/article.dart';
 import '../database/article_service.dart';
 import '../database/persistence_service.dart';
+import 'session_manager.dart';
 
 // Administracion del carrito con persistencia en base de datos independiente
 class CartManager {
@@ -33,6 +34,13 @@ class CartManager {
 
   // Alternancia de seleccion del producto
   static void toggleProduct(Article article) {
+    final String? activeUserCode = SessionManager.activeUserCode.value;
+    if (!SessionManager.isLoggedIn ||
+        activeUserCode == null ||
+        activeUserCode.trim().isEmpty) {
+      return;
+    }
+
     if (isSelected(article)) {
       // Eliminacion del articulo seleccionado
       selectedArticles.value = selectedArticles.value

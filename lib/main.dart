@@ -7,6 +7,7 @@ import 'services/multimedia_manager.dart';
 import 'services/notification_service.dart';
 import 'screens/main_screen.dart';
 import 'services/cart_manager.dart';
+import 'services/saved_items_manager.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -20,6 +21,9 @@ Future<void> main() async {
     SessionManager.loadSavedSession(),
     CartManager.loadSavedCart(),
   ]);
+
+  // Inicializacion de la lista de deseos asociada a la sesion activa
+  await SavedItemsManager.initialize();
 
   // Inicializacion del servicio centralizado de notificaciones
   await NotificationService().initialize();

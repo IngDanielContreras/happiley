@@ -2,11 +2,14 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import '../models/article.dart';
 import '../services/cart_manager.dart';
+import '../services/saved_items_manager.dart';
+import '../services/session_manager.dart';
 import '../services/system_sound_manager.dart';
 import '../widgets/custom_app_bar.dart';
 import '../widgets/article_description_viewer.dart';
 import '../widgets/loading_dialog.dart';
 import 'image_viewer_screen.dart';
+import 'main_screen.dart';
 
 class ArticleDetailScreen extends StatefulWidget {
   final Article article;
@@ -100,7 +103,11 @@ class ArticleDetailContent extends StatelessWidget {
 
   // Adicion del producto al carrito y activacion de flujo de compra inmediata
   void _buyNow() {
-    if (!CartManager.isSelected(article)) {
+    final String? activeUserCode = SessionManager.activeUserCode.value;
+    if (SessionManager.isLoggedIn &&
+        activeUserCode != null &&
+        activeUserCode.trim().isNotEmpty &&
+        !CartManager.isSelected(article)) {
       CartManager.toggleProduct(article);
     }
 
@@ -109,6 +116,17 @@ class ArticleDetailContent extends StatelessWidget {
 
   // Despliegue de dialogo modal interactivo de carga para confirmacion de seleccion
   Future<void> _handleCartToggle(BuildContext context) async {
+    final String? activeUserCode = SessionManager.activeUserCode.value;
+    if (!SessionManager.isLoggedIn ||
+        activeUserCode == null ||
+        activeUserCode.trim().isEmpty) {
+      FocusScope.of(context).unfocus();
+      MainScreenState.of(context)?.promptAuthentication(
+        redirectToCartAfterLogin: false,
+      );
+      return;
+    }
+
     final bool isSelected = CartManager.isSelected(article);
 
     CartManager.toggleProduct(article);
@@ -138,6 +156,72 @@ class ArticleDetailContent extends StatelessWidget {
         customIcon: const Icon(
           Icons.check_circle_rounded,
           color: Color(0xFF4CAF50),
+          size: 64,
+        ),
+      );
+    }
+  }
+
+  Future<void> _handleFavoriteToggle(BuildContext context) async {
+    final String? activeUserCode = SessionManager.activeUserCode.value;
+    if (!SessionManager.isLoggedIn ||
+        activeUserCode == null ||
+        activeUserCode.trim().isEmpty) {
+      FocusScope.of(context).unfocus();
+      MainScreenState.of(context)?.promptAuthentication(
+        redirectToCartAfterLogin: false,
+      );
+      return;
+    }
+
+    final bool wasSaved = SavedItemsManager.isSaved(article);
+    final bool operationSuccess =
+    await SavedItemsManager.toggleSavedItem(article);
+
+    if (!context.mounted) return;
+
+    if (!operationSuccess) {
+      await LoadingDialog.show(
+        context,
+        title: 'Error de Guardado',
+        subtitle: 'No se pudo actualizar tu lista de deseos.',
+        autoDismiss: true,
+        duration: const Duration(seconds: 2),
+        customSoundType: SystemSoundType.error,
+        customIcon: const Icon(
+          Icons.error_outline_rounded,
+          color: Color(0xFFE53935),
+          size: 64,
+        ),
+      );
+      return;
+    }
+
+    if (wasSaved) {
+      await LoadingDialog.show(
+        context,
+        title: '¡Artículo Eliminado!',
+        subtitle: 'El artículo ha sido eliminado de tu lista de deseos.',
+        autoDismiss: true,
+        duration: const Duration(seconds: 2),
+        customSoundType: SystemSoundType.unsavedItem,
+        customIcon: const Icon(
+          Icons.heart_broken_rounded,
+          color: Color(0xFFE53935),
+          size: 64,
+        ),
+      );
+    } else {
+      await LoadingDialog.show(
+        context,
+        title: '¡Artículo Guardado!',
+        subtitle: 'El artículo se ha añadido a tu lista de deseos.',
+        autoDismiss: true,
+        duration: const Duration(seconds: 2),
+        customSoundType: SystemSoundType.savedItem,
+        customIcon: const Icon(
+          Icons.favorite_rounded,
+          color: Color(0xFFE53935),
           size: 64,
         ),
       );
@@ -356,36 +440,85 @@ class ArticleDetailContent extends StatelessWidget {
                     ),
                   ),
 
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 10),
 
                   // Boton circular para agregar o quitar el articulo del carrito
-                  ValueListenableBuilder<List<Article>>(
-                    valueListenable: CartManager.selectedArticles,
-                    builder: (context, selectedArticles, child) {
-                      final isSelected =
-                      CartManager.isSelected(article);
+                  ValueListenableBuilder<String?>(
+                    valueListenable: SessionManager.activeUserCode,
+                    builder: (context, activeUserCode, _) {
+                      final bool isAuthenticated = activeUserCode != null &&
+                          activeUserCode.trim().isNotEmpty;
 
-                      return Container(
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: isSelected
-                              ? const Color(0xFF2D2DA8)
-                              : Colors.grey.shade200,
-                        ),
-                        child: IconButton(
-                          tooltip: isSelected
-                              ? 'Quitar del carrito'
-                              : 'Agregar al carrito',
-                          icon: Icon(
-                            isSelected
-                                ? Icons.shopping_cart
-                                : Icons.shopping_cart_outlined,
-                            color: isSelected
-                                ? Colors.white
-                                : Colors.grey.shade700,
-                          ),
-                          onPressed: () => _handleCartToggle(context),
-                        ),
+                      return ValueListenableBuilder<List<Article>>(
+                        valueListenable: CartManager.selectedArticles,
+                        builder: (context, selectedArticles, child) {
+                          final isSelected = isAuthenticated &&
+                              CartManager.isSelected(article);
+
+                          return Container(
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: isSelected
+                                  ? const Color(0xFF2D2DA8)
+                                  : Colors.grey.shade200,
+                            ),
+                            child: IconButton(
+                              tooltip: isSelected
+                                  ? 'Quitar del carrito'
+                                  : 'Agregar al carrito',
+                              icon: Icon(
+                                isSelected
+                                    ? Icons.shopping_cart
+                                    : Icons.shopping_cart_outlined,
+                                color: isSelected
+                                    ? Colors.white
+                                    : Colors.grey.shade700,
+                              ),
+                              onPressed: () => _handleCartToggle(context),
+                            ),
+                          );
+                        },
+                      );
+                    },
+                  ),
+
+                  const SizedBox(width: 10),
+
+                  ValueListenableBuilder<String?>(
+                    valueListenable: SessionManager.activeUserCode,
+                    builder: (context, activeUserCode, _) {
+                      final bool isAuthenticated = activeUserCode != null &&
+                          activeUserCode.trim().isNotEmpty;
+
+                      return ValueListenableBuilder<List<Article>>(
+                        valueListenable: SavedItemsManager.savedArticles,
+                        builder: (context, savedArticles, child) {
+                          final bool isSaved = isAuthenticated &&
+                              SavedItemsManager.isSaved(article);
+
+                          return Container(
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: isSaved
+                                  ? const Color(0xFFFFEBEE)
+                                  : Colors.grey.shade200,
+                            ),
+                            child: IconButton(
+                              tooltip: isSaved
+                                  ? 'Quitar de favoritos'
+                                  : 'Guardar en favoritos',
+                              icon: Icon(
+                                isSaved
+                                    ? Icons.favorite
+                                    : Icons.favorite_border,
+                                color: isSaved
+                                    ? const Color(0xFFE53935)
+                                    : Colors.grey.shade700,
+                              ),
+                              onPressed: () => _handleFavoriteToggle(context),
+                            ),
+                          );
+                        },
                       );
                     },
                   ),

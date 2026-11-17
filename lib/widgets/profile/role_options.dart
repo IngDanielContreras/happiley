@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../models/user.dart';
+import '../../screens/main_screen.dart';
+import '../../screens/my_items_screen.dart';
+import '../../screens/saved_items_screen.dart';
 
 class RoleOptions extends StatelessWidget {
   final User user;
@@ -10,6 +13,32 @@ class RoleOptions extends StatelessWidget {
     required this.user,
     this.onPublishArticle,
   });
+
+  // Apertura de la pantalla de lista de deseos del usuario
+  void _openSavedItemsScreen(BuildContext context) {
+    final MainScreenState? mainScreenState = MainScreenState.of(context);
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => SavedItemsScreen(
+          onBuyNowRedirect: () {
+            mainScreenState?.buyNowAndGoToCart();
+          },
+        ),
+      ),
+    );
+  }
+
+  // Apertura de la pantalla de articulos publicados del vendedor
+  void _openMyItemsScreen(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => MyItemsScreen(user: user),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -44,7 +73,7 @@ class RoleOptions extends StatelessWidget {
           icon: Icons.favorite_border,
           title: 'Lista de Deseos',
           subtitle: 'Tus artículos guardados',
-          onTap: () {},
+          onTap: () => _openSavedItemsScreen(context),
         ),
 
         // Opciones exclusivas para Vendedor
@@ -75,7 +104,7 @@ class RoleOptions extends StatelessWidget {
             icon: Icons.store,
             title: 'Mis Productos',
             subtitle: 'Gestionar catálogo y stock publicado',
-            onTap: () {},
+            onTap: () => _openMyItemsScreen(context),
           ),
           _buildOptionTile(
             icon: Icons.point_of_sale,

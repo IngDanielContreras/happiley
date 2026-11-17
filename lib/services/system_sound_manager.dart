@@ -15,6 +15,8 @@ enum SystemSoundType {
   success,
   addArticle,
   removeArticle,
+  savedItem,
+  unsavedItem,
   notification,
 }
 
@@ -73,6 +75,10 @@ class SystemSoundManager with WidgetsBindingObserver {
     'lib/assets/music/system_sounds/add_article_sound.m4a',
     SystemSoundType.removeArticle:
     'lib/assets/music/system_sounds/remove_article_sound.m4a',
+    SystemSoundType.savedItem:
+    'lib/assets/music/system_sounds/saved_item_sound.m4a',
+    SystemSoundType.unsavedItem:
+    'lib/assets/music/system_sounds/unsaved_item_sound.m4a',
     SystemSoundType.notification:
     'lib/assets/music/system_sounds/notification_sound.m4a',
   };
@@ -86,6 +92,8 @@ class SystemSoundManager with WidgetsBindingObserver {
         return 2;
       case SystemSoundType.addArticle:
       case SystemSoundType.removeArticle:
+      case SystemSoundType.savedItem:
+      case SystemSoundType.unsavedItem:
       case SystemSoundType.alert:
       case SystemSoundType.success:
       case SystemSoundType.error:
@@ -256,6 +264,18 @@ class SystemSoundManager with WidgetsBindingObserver {
       _soundCache[type] = bytes;
       return bytes;
     } catch (e) {
+      if (assetPath.startsWith('lib/')) {
+        try {
+          final ByteData fallbackData =
+          await rootBundle.load(assetPath.substring(4));
+          final Uint8List bytes = fallbackData.buffer.asUint8List(
+            fallbackData.offsetInBytes,
+            fallbackData.lengthInBytes,
+          );
+          _soundCache[type] = bytes;
+          return bytes;
+        } catch (_) {}
+      }
       debugPrint('Error al cargar el sonido del sistema ($assetPath): $e');
       return null;
     }
@@ -414,6 +434,8 @@ class SystemSoundManager with WidgetsBindingObserver {
   Future<void> playSuccess() => playSound(SystemSoundType.success);
   Future<void> playAddArticle() => playSound(SystemSoundType.addArticle);
   Future<void> playRemoveArticle() => playSound(SystemSoundType.removeArticle);
+  Future<void> playSavedItem() => playSound(SystemSoundType.savedItem);
+  Future<void> playUnsavedItem() => playSound(SystemSoundType.unsavedItem);
 
   // Detencion de todos los reproductores activos del sistema
   Future<void> stopAllSystemSounds() async {
