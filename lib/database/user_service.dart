@@ -42,7 +42,8 @@ class UserService {
     }
 
     final RegExp dmyPattern = RegExp(
-      r'^(\d{1,2})/(\d{1,2})/(\d{2,4})(?:[ T]+(\d{1,2}):(\d{2})(?::(\d{2}))?(?:\s*([AaPp]\.?[Mm]\.?))?)?$',
+      r'^(\d{1,2})/(\d{1,2})/(\d{2,4})(?:(?:\s+a\s+las\s+|[ T]+)(\d{1,2}):(\d{2})(?::(\d{2}))?(?:\s*([AaPp]\.?[Mm]\.?))?)?$',
+      caseSensitive: false,
     );
     final match = dmyPattern.firstMatch(trimmed);
     if (match != null) {
@@ -90,7 +91,42 @@ class UserService {
     }
   }
 
-  // Autenticacion de usuario en la base de datos con recuperacion y actualizacion atomica de ultimo acceso
+  // Formateo de fecha y hora del ultimo acceso en formato de 12 horas
+  String _formatLastAccessDateTime(
+      String rawDateString, {
+        String emptyFallback = 'Primer acceso',
+      }) {
+    final String trimmed = rawDateString.trim();
+    if (trimmed.isEmpty) return emptyFallback;
+
+    try {
+      final DateTime? parsedDate = _parseStoredDateTime(trimmed);
+      if (parsedDate == null) return trimmed;
+
+      final DateTime localDate = parsedDate.toLocal();
+      final String day = localDate.day.toString().padLeft(2, '0');
+      final String month = localDate.month.toString().padLeft(2, '0');
+      final String year = localDate.year.toString().padLeft(4, '0');
+
+      final bool hasTimeComponent =
+          trimmed.contains(':') || trimmed.contains('T');
+      if (!hasTimeComponent) {
+        return '$day/$month/$year';
+      }
+
+      final int hour24 = localDate.hour;
+      final int hour12 =
+      hour24 == 0 ? 12 : (hour24 > 12 ? hour24 - 12 : hour24);
+      final String minute = localDate.minute.toString().padLeft(2, '0');
+      final String period = hour24 >= 12 ? 'P.M.' : 'A.M.';
+
+      return '$day/$month/$year a las $hour12:$minute $period';
+    } catch (_) {
+      return trimmed;
+    }
+  }
+
+  // Autenticacion de usuario en la base de datos con registro atomico de ultimo acceso
   Future<User?> loginUser({
     required String email,
     required String password,
@@ -110,15 +146,20 @@ class UserService {
         result.first,
       );
 
-      // Capturamos la fecha de acceso almacenada previamente
-      final String rawLastAccess = userMap['last_access_date'] as String? ?? '';
       final String rawBirthDate = userMap['birth_date'] as String? ?? '';
       final String userCode = (userMap['code'] as String? ?? '').trim();
+      final String userRole =
+      (userMap['role'] as String? ?? 'Visitante').trim();
 
-      // Ejecucion transaccional atomica para registrar el acceso actual antes de retornar
+      // Verificacion de prefijo de codigo segun el rol del usuario o la pestaña
+      if (!isValidRoleCode(userCode, selectedRole) &&
+          !isValidRoleCode(userCode, userRole)) {
+        return null;
+      }
+
+      // Ejecucion transaccional atomica para registrar fecha y hora del acceso actual
+      final String currentTimestamp = DateTime.now().toIso8601String();
       await db.transaction((txn) async {
-        final String currentTimestamp = DateTime.now().toIso8601String();
-
         await txn.update(
           'users',
           {'last_access_date': currentTimestamp},
@@ -128,23 +169,17 @@ class UserService {
       });
 
       if (userCode.isNotEmpty) {
-        await SessionManager.savePreviousLastAccess(userCode, rawLastAccess);
+        await SessionManager.savePreviousLastAccess(userCode, currentTimestamp);
       }
 
-      // Transformamos las fechas al formato unificado dd/MM/yyyy
-      userMap['last_access_date'] = _formatUnifiedDate(
-        rawLastAccess,
+      // Transformamos el ultimo acceso con fecha y hora y el nacimiento como fecha
+      userMap['last_access_date'] = _formatLastAccessDateTime(
+        currentTimestamp,
         emptyFallback: 'Primer acceso',
       );
       userMap['birth_date'] = _formatUnifiedDate(rawBirthDate);
 
-      final User user = User.fromMap(userMap);
-
-      // Verificacion de prefijo de codigo segun el rol del usuario o la pestaña
-      if (isValidRoleCode(user.code, selectedRole) ||
-          isValidRoleCode(user.code, user.role)) {
-        return user;
-      }
+      return User.fromMap(userMap);
     }
     return null;
   }
@@ -165,14 +200,16 @@ class UserService {
         result.first,
       );
       final String userCode = (userMap['code'] as String? ?? '').trim();
-      final String? sessionPreviousAccess = userCode.isNotEmpty
+      final String dbLastAccess =
+      (userMap['last_access_date'] as String? ?? '').trim();
+      final String? sessionLastAccess = userCode.isNotEmpty
           ? await SessionManager.getPreviousLastAccess(userCode)
           : null;
       final String effectiveLastAccess =
-          sessionPreviousAccess ?? (userMap['last_access_date'] as String? ?? '');
+      dbLastAccess.isNotEmpty ? dbLastAccess : (sessionLastAccess ?? '');
       final String rawBirthDate = userMap['birth_date'] as String? ?? '';
 
-      userMap['last_access_date'] = _formatUnifiedDate(
+      userMap['last_access_date'] = _formatLastAccessDateTime(
         effectiveLastAccess,
         emptyFallback: 'Primer acceso',
       );

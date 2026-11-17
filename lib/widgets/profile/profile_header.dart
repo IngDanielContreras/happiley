@@ -18,6 +18,77 @@ class ProfileHeader extends StatelessWidget {
     return '$cleanFirst $cleanLast'.trim();
   }
 
+  // Formateo de fecha y hora del ultimo acceso en formato de 12 horas
+  String _formatLastAccessDisplay(String rawValue) {
+    final String trimmed = rawValue.trim();
+    if (trimmed.isEmpty) return 'Primer acceso';
+
+    String format12Hour(DateTime dt) {
+      final DateTime localDt = dt.toLocal();
+      final String day = localDt.day.toString().padLeft(2, '0');
+      final String month = localDt.month.toString().padLeft(2, '0');
+      final String year = localDt.year.toString().padLeft(4, '0');
+      final int hour24 = localDt.hour;
+      final int hour12 =
+      hour24 == 0 ? 12 : (hour24 > 12 ? hour24 - 12 : hour24);
+      final String minute = localDt.minute.toString().padLeft(2, '0');
+      final String period = hour24 >= 12 ? 'P.M.' : 'A.M.';
+      return '$day/$month/$year a las $hour12:$minute $period';
+    }
+
+    final DateTime? isoParsed = DateTime.tryParse(trimmed);
+    if (isoParsed != null) {
+      if (trimmed.contains(':') || trimmed.contains('T')) {
+        return format12Hour(isoParsed);
+      }
+      final String day = isoParsed.day.toString().padLeft(2, '0');
+      final String month = isoParsed.month.toString().padLeft(2, '0');
+      final String year = isoParsed.year.toString().padLeft(4, '0');
+      return '$day/$month/$year';
+    }
+
+    final RegExp dmyPattern = RegExp(
+      r'^(\d{1,2})/(\d{1,2})/(\d{2,4})(?:(?:\s+a\s+las\s+|[ T]+)(\d{1,2}):(\d{2})(?::(\d{2}))?(?:\s*([AaPp]\.?[Mm]\.?))?)?$',
+      caseSensitive: false,
+    );
+    final Match? match = dmyPattern.firstMatch(trimmed);
+    if (match != null) {
+      final int day = int.parse(match.group(1)!);
+      final int month = int.parse(match.group(2)!);
+      int year = int.parse(match.group(3)!);
+      if (year < 100) {
+        year += 2000;
+      }
+
+      if (match.group(4) == null) {
+        final String d = day.toString().padLeft(2, '0');
+        final String m = month.toString().padLeft(2, '0');
+        final String y = year.toString().padLeft(4, '0');
+        return '$d/$m/$y';
+      }
+
+      int hour = int.parse(match.group(4)!);
+      final int minute = int.parse(match.group(5)!);
+      final int second = match.group(6) != null ? int.parse(match.group(6)!) : 0;
+      final String? meridiem = match.group(7)?.toUpperCase().replaceAll('.', '');
+
+      if (meridiem == 'PM' && hour < 12) {
+        hour += 12;
+      } else if (meridiem == 'AM' && hour == 12) {
+        hour = 0;
+      }
+
+      final DateTime candidate = DateTime(year, month, day, hour, minute, second);
+      if (candidate.year == year &&
+          candidate.month == month &&
+          candidate.day == day) {
+        return format12Hour(candidate);
+      }
+    }
+
+    return trimmed;
+  }
+
   // Resolucion del proveedor de imagen para el avatar
   ImageProvider<Object>? _resolveAvatarImage(String? imagePath) {
     if (imagePath == null || imagePath.trim().isEmpty) {
@@ -138,7 +209,7 @@ class ProfileHeader extends StatelessWidget {
               ),
               const SizedBox(height: 3),
               Text(
-                'Último acceso: ${user.lastAccessDate}',
+                'Último acceso: ${_formatLastAccessDisplay(user.lastAccessDate)}',
                 textAlign: TextAlign.left,
                 style: TextStyle(
                   fontSize: 12.5,

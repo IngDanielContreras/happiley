@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/user.dart';
 import '../database/user_service.dart';
+import '../services/session_manager.dart';
 import '../services/system_sound_manager.dart';
 import '../widgets/profile/profile_header.dart';
 import '../widgets/profile/universal_info_card.dart';
@@ -13,12 +14,14 @@ class ProfileScreen extends StatefulWidget {
   final dynamic userCode;
   final VoidCallback? onLogout;
   final VoidCallback? onPublishArticle;
+  final VoidCallback? onAccountDeleted;
 
   const ProfileScreen({
     super.key,
     required this.userCode,
     this.onLogout,
     this.onPublishArticle,
+    this.onAccountDeleted,
   });
 
   @override
@@ -50,18 +53,37 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _userFuture = _userService.getUserById(widget.userCode);
   }
 
-  // Apertura de la pantalla de informacion de cuenta y recarga al volver
+  // Apertura de la pantalla de informacion de cuenta y gestion de retorno
   Future<void> _openAccountInfoScreen(User user) async {
+    bool accountWasDeleted = false;
+
     final bool? updated = await Navigator.push<bool>(
       context,
       MaterialPageRoute(
         builder: (context) => AccountInfoScreen(
           userCode: user.code,
+          onAccountDeleted: () {
+            accountWasDeleted = true;
+          },
         ),
       ),
     );
 
-    if (updated == true && mounted) {
+    if (!mounted) return;
+
+    final String? activeUserCode = SessionManager.activeUserCode.value;
+    if (accountWasDeleted ||
+        activeUserCode == null ||
+        activeUserCode.trim().isEmpty) {
+      if (widget.onAccountDeleted != null) {
+        widget.onAccountDeleted!.call();
+      } else {
+        widget.onLogout?.call();
+      }
+      return;
+    }
+
+    if (updated == true) {
       setState(() {
         _loadUserData();
       });

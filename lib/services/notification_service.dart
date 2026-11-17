@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite/sqflite.dart';
@@ -15,6 +16,8 @@ class NotificationService {
   }
 
   static const String _welcomeInitializedKey = 'happiley_welcome_notif_v1';
+  // Tiempo de espera antes de emitir la notificacion de inicio de sesion
+  static const Duration loginNotificationDelay = Duration(seconds: 5);
 
   final ArticleService _articleService = ArticleService();
   final ValueNotifier<List<AppNotification>> notificationsNotifier =
@@ -22,6 +25,9 @@ class NotificationService {
   final ValueNotifier<int> unreadCountNotifier = ValueNotifier<int>(0);
 
   bool _tableReady = false;
+  Timer? _loginNotificationTimer;
+  int _loginEventSequence = 0;
+  String? _activeLoginEventId;
 
   Future<Database> _getDb() async {
     final db = await _articleService.database;
@@ -86,6 +92,12 @@ class NotificationService {
   }
 
   void _onSessionChanged() {
+    final String? currentUserCode = SessionManager.activeUserCode.value;
+    if (currentUserCode == null || currentUserCode.trim().isEmpty) {
+      _loginNotificationTimer?.cancel();
+      _loginNotificationTimer = null;
+      _activeLoginEventId = null;
+    }
     refreshNotifications();
   }
 
@@ -218,14 +230,39 @@ class NotificationService {
     }
   }
 
+  // Programacion diferida e independiente por cada nuevo inicio de sesion exitoso
   Future<void> notifyLoginSuccess(String userCode) async {
-    await addNotification(
-      title: 'Inicio de sesión exitoso',
-      subtitle:
-      'Has iniciado sesión correctamente. ¡Nos alegra tenerte de vuelta en Happiley!',
-      type: AppNotificationType.loginSuccess,
-      userCode: userCode,
-    );
+    final String normalizedCode = userCode.trim();
+    if (normalizedCode.isEmpty) return;
+
+    _loginNotificationTimer?.cancel();
+    _loginEventSequence++;
+    final String loginEventId =
+        'LOGIN_${normalizedCode}_${DateTime.now().microsecondsSinceEpoch}_$_loginEventSequence';
+    _activeLoginEventId = loginEventId;
+
+    _loginNotificationTimer = Timer(loginNotificationDelay, () async {
+      if (_activeLoginEventId != loginEventId) {
+        return;
+      }
+
+      _loginNotificationTimer = null;
+      _activeLoginEventId = null;
+
+      final String? activeCode = SessionManager.activeUserCode.value;
+      if (activeCode == null || activeCode.trim() != normalizedCode) {
+        return;
+      }
+
+      await addNotification(
+        title: 'Inicio de sesión exitoso',
+        subtitle:
+        'Has iniciado sesión correctamente. ¡Nos alegra tenerte de vuelta en Happiley!',
+        type: AppNotificationType.loginSuccess,
+        userCode: normalizedCode,
+        referenceId: loginEventId,
+      );
+    });
   }
 
   Future<void> notifyPurchaseSuccess({

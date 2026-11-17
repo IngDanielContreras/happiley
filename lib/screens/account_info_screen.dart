@@ -34,6 +34,9 @@ class AccountInfoScreen extends StatefulWidget {
 }
 
 class _AccountInfoScreenState extends State<AccountInfoScreen> {
+  // Duracion configurable del indicador circular de carga al eliminar cuenta
+  static const Duration _accountDeletionLoadingDuration = Duration(seconds: 3);
+
   // Servicios y clave de formulario
   final UserService _userService = UserService();
   final ImagePicker _imagePicker = ImagePicker();
@@ -821,6 +824,43 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
     return null;
   }
 
+  // Verificacion de sesion y contrasena actual antes de eliminar la cuenta
+  Future<String?> _verifyCurrentUserPassword({
+    required String userCode,
+    required String currentPassword,
+  }) async {
+    try {
+      final String? activeSessionCode = SessionManager.activeUserCode.value;
+      if (activeSessionCode == null ||
+          activeSessionCode.trim().isEmpty ||
+          activeSessionCode.trim() != userCode.trim()) {
+        return 'Tu sesión ha expirado. Inicia sesión nuevamente para continuar.';
+      }
+
+      final Database db = await _openAppDatabase();
+      final rows = await db.query(
+        'users',
+        columns: ['password'],
+        where: 'code = ?',
+        whereArgs: [userCode.trim()],
+        limit: 1,
+      );
+
+      if (rows.isEmpty) {
+        return 'No se encontró el registro del usuario en la base de datos.';
+      }
+
+      final String storedPassword = (rows.first['password'] ?? '').toString();
+      if (storedPassword != currentPassword) {
+        return 'La contraseña actual ingresada es incorrecta.';
+      }
+
+      return null;
+    } catch (_) {
+      return 'No fue posible verificar tus credenciales en este momento. Intenta nuevamente.';
+    }
+  }
+
   // Apertura del dialogo aislado para cambiar la contrasena del usuario
   Future<void> _showChangePasswordDialog() async {
     final User? user = _currentUser;
@@ -843,7 +883,7 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
     );
   }
 
-  // Confirmacion doble antes de eliminar la cuenta
+  // Confirmacion doble y verificacion de credenciales antes de eliminar la cuenta
   Future<void> _startAccountDeletionFlow() async {
     if (_isEditing ||
         _currentUser == null ||
@@ -1068,6 +1108,24 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
 
     if (!mounted || secondConfirmed != true) return;
 
+    final User? user = _currentUser;
+    if (user == null) return;
+
+    SystemSoundManager().playDialogOpen();
+
+    final bool? passwordVerified = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext dialogContext) {
+        return _VerifyDeleteAccountPasswordDialog(
+          userCode: user.code,
+          verifyPassword: _verifyCurrentUserPassword,
+        );
+      },
+    );
+
+    if (!mounted || passwordVerified != true) return;
+
     await _executeAccountDeletion();
   }
 
@@ -1104,9 +1162,21 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
       autoDismiss: false,
       playOpenSound: false,
       controller: loadingController,
+      customIcon: const SizedBox(
+        width: 40,
+        height: 40,
+        child: CircularProgressIndicator(
+          valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF5548F5)),
+          strokeWidth: 3.5,
+        ),
+      ),
     );
 
+    final Future<void> minimumLoadingDelay =
+    Future<void>.delayed(_accountDeletionLoadingDuration);
+
     final String userCode = user.code.trim();
+    final String userEmail = user.email.trim().toLowerCase();
     final List<String> filesToDeleteAfterCommit = [];
 
     try {
@@ -1315,6 +1385,8 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
         }
       } catch (_) {}
 
+      await minimumLoadingDelay;
+
       if (!mounted) return;
 
       await loadingController.showResult(
@@ -1327,10 +1399,16 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
 
       // Limpieza de estados del carrito y de la sesion activa igual que en cierre de sesion
       CartManager.clearCart();
-      SessionManager.clearSession();
+      await SessionManager.clearSession();
 
       try {
         final SharedPreferences prefs = await SharedPreferences.getInstance();
+        final String savedEmail =
+        (prefs.getString('login_saved_email') ?? '').trim().toLowerCase();
+        if (savedEmail.isNotEmpty && savedEmail == userEmail) {
+          await prefs.remove('login_saved_email');
+          await prefs.remove('login_remember_data');
+        }
         for (final String key in prefs.getKeys().toList()) {
           final String lowerKey = key.toLowerCase();
           if (lowerKey.contains('active_user') ||
@@ -1347,7 +1425,7 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
 
       final NavigatorState navigator = Navigator.of(context);
       if (navigator.canPop()) {
-        navigator.pop('account_deleted');
+        navigator.pop(false);
         widget.onAccountDeleted?.call();
       } else {
         navigator.pushAndRemoveUntil(
@@ -1361,6 +1439,8 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
         );
       }
     } catch (_) {
+      await minimumLoadingDelay;
+
       if (!mounted) return;
 
       await loadingController.showResult(
@@ -1396,6 +1476,80 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
   String _displayValue(String? raw) {
     if (raw == null || raw.trim().isEmpty) return 'N/A';
     return raw.trim();
+  }
+
+  // Formateo de fecha y hora en 12 horas para el ultimo acceso del usuario
+  String _formatLastAccessDateTime(String? raw) {
+    if (raw == null || raw.trim().isEmpty || raw.trim() == 'N/A') {
+      return 'N/A';
+    }
+
+    final String trimmed = raw.trim();
+
+    String format12Hour(DateTime dt) {
+      final String day = dt.day.toString().padLeft(2, '0');
+      final String month = dt.month.toString().padLeft(2, '0');
+      final String year = dt.year.toString().padLeft(4, '0');
+      final int hour24 = dt.hour;
+      final int hour12 =
+      hour24 == 0 ? 12 : (hour24 > 12 ? hour24 - 12 : hour24);
+      final String minute = dt.minute.toString().padLeft(2, '0');
+      final String period = hour24 >= 12 ? 'P.M.' : 'A.M.';
+      return '$day/$month/$year a las $hour12:$minute $period';
+    }
+
+    final DateTime? parsedIso = DateTime.tryParse(trimmed);
+    if (parsedIso != null) {
+      if (trimmed.contains(':') || trimmed.contains('T')) {
+        return format12Hour(parsedIso.toLocal());
+      }
+      final String day = parsedIso.day.toString().padLeft(2, '0');
+      final String month = parsedIso.month.toString().padLeft(2, '0');
+      final String year = parsedIso.year.toString().padLeft(4, '0');
+      return '$day/$month/$year';
+    }
+
+    final RegExp dmy12Regex = RegExp(
+      r'^(\d{1,2})/(\d{1,2})/(\d{4})(?:\s+(?:a\s+las\s+)?)(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(a\.?m\.?|p\.?m\.?)$',
+      caseSensitive: false,
+    );
+    final Match? dmy12Match = dmy12Regex.firstMatch(trimmed);
+    if (dmy12Match != null) {
+      final int day = int.parse(dmy12Match.group(1)!);
+      final int month = int.parse(dmy12Match.group(2)!);
+      final int year = int.parse(dmy12Match.group(3)!);
+      int hour = int.parse(dmy12Match.group(4)!);
+      final int minute = int.parse(dmy12Match.group(5)!);
+      final int second = int.parse(dmy12Match.group(6) ?? '0');
+      final String meridiem =
+      dmy12Match.group(7)!.toLowerCase().replaceAll('.', '');
+
+      if (meridiem == 'pm' && hour < 12) {
+        hour += 12;
+      } else if (meridiem == 'am' && hour == 12) {
+        hour = 0;
+      }
+
+      return format12Hour(DateTime(year, month, day, hour, minute, second));
+    }
+
+    final RegExp dmy24Regex = RegExp(
+      r'^(\d{1,2})/(\d{1,2})/(\d{4})(?:\s+(?:a\s+las\s+)?)(\d{1,2}):(\d{2})(?::(\d{2}))?$',
+      caseSensitive: false,
+    );
+    final Match? dmy24Match = dmy24Regex.firstMatch(trimmed);
+    if (dmy24Match != null) {
+      final int day = int.parse(dmy24Match.group(1)!);
+      final int month = int.parse(dmy24Match.group(2)!);
+      final int year = int.parse(dmy24Match.group(3)!);
+      final int hour = int.parse(dmy24Match.group(4)!);
+      final int minute = int.parse(dmy24Match.group(5)!);
+      final int second = int.parse(dmy24Match.group(6) ?? '0');
+
+      return format12Hour(DateTime(year, month, day, hour, minute, second));
+    }
+
+    return trimmed;
   }
 
   // Tarjeta desplegable reutilizable para organizar las secciones de cuenta
@@ -1769,6 +1923,8 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
     final User user = _currentUser!;
     final bool hasAccessExpiration = user.accessExpirationDate != null &&
         user.accessExpirationDate!.trim().isNotEmpty;
+    final String formattedLastAccess =
+    _formatLastAccessDateTime(user.lastAccessDate);
 
     return [
       if (_isEditing)
@@ -1839,13 +1995,13 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
       if (_isEditing)
         _buildDisabledProtectedInput(
           label: 'Último acceso',
-          value: _displayValue(user.lastAccessDate),
+          value: formattedLastAccess,
           isDark: isDark,
         )
       else
         _buildReadOnlyField(
           label: 'Último acceso',
-          value: _displayValue(user.lastAccessDate),
+          value: formattedLastAccess,
           isProtected: true,
           isDark: isDark,
         ),
@@ -2225,6 +2381,265 @@ class _AnimatedDialogIconState extends State<_AnimatedDialogIcon>
     return ScaleTransition(
       scale: _scaleAnimation,
       child: widget.icon,
+    );
+  }
+}
+
+// Dialogo independiente de verificacion de contrasena antes de eliminar cuenta
+class _VerifyDeleteAccountPasswordDialog extends StatefulWidget {
+  final String userCode;
+  final Future<String?> Function({
+  required String userCode,
+  required String currentPassword,
+  }) verifyPassword;
+
+  const _VerifyDeleteAccountPasswordDialog({
+    required this.userCode,
+    required this.verifyPassword,
+  });
+
+  @override
+  State<_VerifyDeleteAccountPasswordDialog> createState() =>
+      _VerifyDeleteAccountPasswordDialogState();
+}
+
+class _VerifyDeleteAccountPasswordDialogState
+    extends State<_VerifyDeleteAccountPasswordDialog> {
+  final TextEditingController _passwordController = TextEditingController();
+  bool _obscurePassword = true;
+  bool _isVerifying = false;
+  String? _passwordError;
+
+  @override
+  void dispose() {
+    _passwordController.clear();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _handleVerifyPressed() async {
+    if (_isVerifying) return;
+    FocusScope.of(context).unfocus();
+
+    final String enteredPassword = _passwordController.text;
+    if (enteredPassword.isEmpty) {
+      setState(() {
+        _passwordError = 'Ingresa tu contraseña actual.';
+      });
+      SystemSoundManager().playError();
+      return;
+    }
+
+    setState(() {
+      _isVerifying = true;
+      _passwordError = null;
+    });
+
+    final String? verificationError = await widget.verifyPassword(
+      userCode: widget.userCode,
+      currentPassword: enteredPassword,
+    );
+
+    if (!mounted) return;
+
+    if (verificationError != null) {
+      setState(() {
+        _isVerifying = false;
+        _passwordError = verificationError;
+      });
+      SystemSoundManager().playError();
+      return;
+    }
+
+    _passwordController.clear();
+    SystemSoundManager().playAcceptYes();
+    Navigator.of(context).pop(true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
+    final bool hasError = _passwordError != null;
+    final Color softErrorStroke =
+    isDark ? const Color(0xFFD67A7A) : const Color(0xFFC86D6D);
+    final Color softErrorText =
+    isDark ? const Color(0xFFE08C8C) : const Color(0xFFB45353);
+    final Color activeColor =
+    hasError ? softErrorStroke : const Color(0xFFE53935);
+
+    return AlertDialog(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+      ),
+      title: const Row(
+        children: [
+          _AnimatedDialogIcon(
+            icon: Icon(
+              Icons.lock_outline_rounded,
+              color: Color(0xFFE53935),
+              size: 28,
+            ),
+          ),
+          SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Verificar Identidad',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFFE53935),
+              ),
+            ),
+          ),
+        ],
+      ),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Por tu seguridad, ingresa tu contraseña actual para confirmar la eliminación definitiva de tu cuenta.',
+              style: TextStyle(
+                fontSize: 13.5,
+                height: 1.4,
+                color: Color(0xFF657080),
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _passwordController,
+              obscureText: _obscurePassword,
+              enabled: !_isVerifying,
+              autofocus: false,
+              onSubmitted: (_) => _handleVerifyPressed(),
+              onChanged: (_) {
+                if (_passwordError != null) {
+                  setState(() {
+                    _passwordError = null;
+                  });
+                }
+              },
+              decoration: InputDecoration(
+                labelText: 'Contraseña actual',
+                labelStyle: hasError
+                    ? TextStyle(
+                  color: softErrorText,
+                  fontWeight: FontWeight.w500,
+                )
+                    : null,
+                filled: hasError,
+                fillColor: hasError
+                    ? softErrorStroke.withValues(alpha: isDark ? 0.08 : 0.04)
+                    : null,
+                errorText: _passwordError,
+                errorMaxLines: 3,
+                errorStyle: TextStyle(
+                  color: softErrorText,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                ),
+                prefixIcon: Icon(
+                  Icons.lock_outline,
+                  color: activeColor,
+                ),
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    _obscurePassword
+                        ? Icons.visibility_off_outlined
+                        : Icons.visibility_outlined,
+                    color: hasError ? softErrorStroke : null,
+                  ),
+                  onPressed: _isVerifying
+                      ? null
+                      : () {
+                    setState(() {
+                      _obscurePassword = !_obscurePassword;
+                    });
+                  },
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: Color(0xFFD5DAE4)),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: Color(0xFFD5DAE4)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(
+                    color: Color(0xFFE53935),
+                    width: 1.5,
+                  ),
+                ),
+                errorBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(
+                    color: softErrorStroke,
+                    width: 1.2,
+                  ),
+                ),
+                focusedErrorBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(
+                    color: softErrorStroke,
+                    width: 1.5,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+      actionsPadding: const EdgeInsets.fromLTRB(20, 4, 20, 18),
+      actions: [
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton(
+                onPressed: _isVerifying
+                    ? null
+                    : () {
+                  _passwordController.clear();
+                  SystemSoundManager().playDeniedNo();
+                  Navigator.of(context).pop(false);
+                },
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF5548F5),
+                  side: const BorderSide(color: Color(0xFF5548F5)),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: const Text(
+                  'Cancelar',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: ElevatedButton(
+                onPressed: _isVerifying ? null : _handleVerifyPressed,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFE53935),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: const Text(
+                  'Eliminar cuenta',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }

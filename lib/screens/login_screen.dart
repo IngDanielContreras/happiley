@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' hide SystemSoundType;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../database/user_service.dart';
+import '../services/notification_service.dart';
 import '../services/session_manager.dart';
 import '../services/system_sound_manager.dart';
 import '../widgets/loading_dialog.dart';
@@ -24,6 +25,7 @@ class _LoginScreenState extends State<LoginScreen>
   bool obscurePassword = true;
   bool acceptPrivacy = false;
   bool rememberData = false;
+  bool _isAuthenticating = false;
 
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
@@ -276,7 +278,7 @@ class _LoginScreenState extends State<LoginScreen>
 
   // Ejecucion del proceso de autenticacion de usuario
   Future<void> _handleLogin() async {
-    if (remainingSeconds > 0) return;
+    if (remainingSeconds > 0 || _isAuthenticating) return;
 
     if (!acceptPrivacy) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -313,83 +315,96 @@ class _LoginScreenState extends State<LoginScreen>
       return;
     }
 
-    LoadingDialog.show(
-      context,
-      title: 'Iniciando Sesión',
-      subtitle: 'Validando credenciales...',
-      autoDismiss: false,
-      customIcon: const SizedBox(
-        width: 40,
-        height: 40,
-        child: CircularProgressIndicator(
-          valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF5548F5)),
-          strokeWidth: 3.5,
-        ),
-      ),
-    );
+    setState(() {
+      _isAuthenticating = true;
+    });
 
-    await Future.delayed(const Duration(milliseconds: 1000));
-
-    final user = await _userService.loginUser(
-      email: email,
-      password: password,
-      selectedRole: selectedRole,
-    );
-
-    if (!mounted) return;
-    Navigator.of(context, rootNavigator: true).pop();
-
-    if (user != null) {
-      await _resetFullSecurityPolicy();
-      await _saveUserDataPreference(email);
-
-      if (!mounted) return;
-
-      await LoadingDialog.show(
+    try {
+      LoadingDialog.show(
         context,
-        title: '¡Inicio de Sesión Exitoso!',
-        subtitle: 'Bienvenido de nuevo a Happiley',
-        autoDismiss: true,
-        duration: const Duration(seconds: 5),
-        customSoundType: SystemSoundType.success,
-        customIcon: const Icon(
-          Icons.check_circle_rounded,
-          color: Color(0xFF4CAF50),
-          size: 56,
+        title: 'Iniciando Sesión',
+        subtitle: 'Validando credenciales...',
+        autoDismiss: false,
+        customIcon: const SizedBox(
+          width: 40,
+          height: 40,
+          child: CircularProgressIndicator(
+            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF5548F5)),
+            strokeWidth: 3.5,
+          ),
         ),
       );
 
+      await Future.delayed(const Duration(milliseconds: 1000));
+
+      final user = await _userService.loginUser(
+        email: email,
+        password: password,
+        selectedRole: selectedRole,
+      );
+
       if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
 
-      await SessionManager.saveSession(user.code);
+      if (user != null) {
+        await _resetFullSecurityPolicy();
+        await _saveUserDataPreference(email);
 
-      if (!mounted) return;
+        if (!mounted) return;
 
-      if (widget.onLoginSuccess != null) {
-        widget.onLoginSuccess!(user.code);
-      } else if (Navigator.canPop(context)) {
-        Navigator.pop(context, user.code);
+        await LoadingDialog.show(
+          context,
+          title: '¡Inicio de Sesión Exitoso!',
+          subtitle: 'Bienvenido de nuevo a Happiley',
+          autoDismiss: true,
+          duration: const Duration(seconds: 5),
+          customSoundType: SystemSoundType.success,
+          customIcon: const Icon(
+            Icons.check_circle_rounded,
+            color: Color(0xFF4CAF50),
+            size: 56,
+          ),
+        );
+
+        if (!mounted) return;
+
+        await SessionManager.saveSession(user.code);
+        unawaited(NotificationService().notifyLoginSuccess(user.code));
+
+        if (!mounted) return;
+
+        if (widget.onLoginSuccess != null) {
+          widget.onLoginSuccess!(user.code);
+        } else if (Navigator.canPop(context)) {
+          Navigator.pop(context, user.code);
+        }
+      } else {
+        if (!mounted) return;
+
+        await LoadingDialog.show(
+          context,
+          title: 'Datos No Válidos',
+          subtitle: 'Contraseña incorrecta o correo no registrado.',
+          autoDismiss: true,
+          duration: const Duration(seconds: 5),
+          customSoundType: SystemSoundType.error,
+          customIcon: const Icon(
+            Icons.cancel_rounded,
+            color: Color(0xFFE53935),
+            size: 56,
+          ),
+        );
+
+        if (!mounted) return;
+
+        await _handleFailedAttemptAfterDialog();
       }
-    } else {
-      if (!mounted) return;
-
-      await LoadingDialog.show(
-        context,
-        title: 'Datos No Válidos',
-        subtitle: 'Contraseña incorrecta o correo no registrado.',
-        autoDismiss: true,
-        duration: const Duration(seconds: 5),
-        customSoundType: SystemSoundType.error,
-        customIcon: const Icon(
-          Icons.cancel_rounded,
-          color: Color(0xFFE53935),
-          size: 56,
-        ),
-      );
-
-      if (!mounted) return;
-
-      await _handleFailedAttemptAfterDialog();
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isAuthenticating = false;
+        });
+      }
     }
   }
 
@@ -561,7 +576,7 @@ class _LoginScreenState extends State<LoginScreen>
                     // Campo de texto editable para el correo electronico del usuario
                     TextField(
                       controller: emailController,
-                      enabled: !isLocked,
+                      enabled: !isLocked && !_isAuthenticating,
                       keyboardType: TextInputType.emailAddress,
                       decoration: InputDecoration(
                         hintText: 'ejemplo@happiley.com',
@@ -618,7 +633,7 @@ class _LoginScreenState extends State<LoginScreen>
                     // Campo de texto protegido para la contrasena del sistema
                     TextField(
                       controller: passwordController,
-                      enabled: !isLocked,
+                      enabled: !isLocked && !_isAuthenticating,
                       obscureText: obscurePassword,
                       decoration: InputDecoration(
                         hintText: '••••••••••••',
@@ -639,7 +654,7 @@ class _LoginScreenState extends State<LoginScreen>
                             color: const Color(0xFF60748C),
                             size: 21,
                           ),
-                          onPressed: isLocked
+                          onPressed: (isLocked || _isAuthenticating)
                               ? null
                               : () {
                             setState(() {
@@ -679,7 +694,7 @@ class _LoginScreenState extends State<LoginScreen>
                       value: acceptPrivacy,
                       text: 'Acepto la ',
                       linkText: 'Política de Privacidad',
-                      onChanged: isLocked
+                      onChanged: (isLocked || _isAuthenticating)
                           ? (v) {}
                           : (value) {
                         setState(() {
@@ -692,7 +707,7 @@ class _LoginScreenState extends State<LoginScreen>
                     _buildCheckRow(
                       value: rememberData,
                       text: 'Recordar mis datos',
-                      onChanged: isLocked
+                      onChanged: (isLocked || _isAuthenticating)
                           ? (v) {}
                           : (value) {
                         setState(() {
@@ -708,7 +723,8 @@ class _LoginScreenState extends State<LoginScreen>
                       width: double.infinity,
                       height: 49,
                       child: ElevatedButton(
-                        onPressed: isLocked ? null : _handleLogin,
+                        onPressed:
+                        (isLocked || _isAuthenticating) ? null : _handleLogin,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF5548F5),
                           disabledBackgroundColor: Colors.grey.shade300,
