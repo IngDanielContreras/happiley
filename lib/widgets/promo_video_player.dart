@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:video_player/video_player.dart';
 import '../services/multimedia_manager.dart';
 
@@ -32,6 +33,7 @@ class _PromoVideoPlayerState extends State<PromoVideoPlayer>
   bool _wasPlayingBeforePause = false;
   bool _isStartingPlayback = false;
   bool _isHandlingVideoEnd = false;
+  bool _isFullscreen = false;
   double _dragProgressValue = 0.0;
   Timer? _hideControlsTimer;
 
@@ -81,8 +83,7 @@ class _PromoVideoPlayerState extends State<PromoVideoPlayer>
       return;
     }
 
-    final bool shouldAutoPlay =
-    !_multimediaManager.hasPlayedInitialPromo;
+    final bool shouldAutoPlay = !_multimediaManager.hasPlayedInitialPromo;
 
     if (shouldAutoPlay) {
       _multimediaManager.markInitialPromoPlayed();
@@ -206,8 +207,7 @@ class _PromoVideoPlayerState extends State<PromoVideoPlayer>
 
     final bool hasEnded = value.duration > Duration.zero &&
         !value.isPlaying &&
-        value.position >=
-            value.duration - const Duration(milliseconds: 120);
+        value.position >= value.duration - const Duration(milliseconds: 120);
 
     if (hasEnded && !_isDraggingProgress) {
       _resetVideoAfterCompletion();
@@ -261,7 +261,104 @@ class _PromoVideoPlayerState extends State<PromoVideoPlayer>
     }
   }
 
-  // Manejo de pulsacion sobre la superficie del video para reproducir, pausar o mostrar controles
+  // Alternancia directa entre reproducir y pausar el video
+  Future<void> _togglePlayPause() async {
+    final controller = _controller;
+    if (controller == null || !_isInitialized) return;
+
+    if (controller.value.isPlaying) {
+      _hideControlsTimer?.cancel();
+      await controller.pause();
+      _multimediaManager.setVideoPlayingState(false);
+
+      if (mounted) {
+        setState(() {
+          _controlsVisible = true;
+        });
+      }
+    } else {
+      if (controller.value.duration > Duration.zero &&
+          controller.value.position >=
+              controller.value.duration -
+                  const Duration(milliseconds: 120)) {
+        await controller.seekTo(Duration.zero);
+      }
+
+      await controller.play();
+      _multimediaManager.setVideoPlayingState(true);
+
+      if (mounted) {
+        setState(() {
+          _controlsVisible = true;
+        });
+        _scheduleAutoHideControls();
+      }
+    }
+  }
+
+  // Apertura del modo de pantalla completa conservando estado y controles
+  Future<void> _enterFullscreen() async {
+    final controller = _controller;
+    if (controller == null || !_isInitialized || _isFullscreen) return;
+
+    _hideControlsTimer?.cancel();
+
+    setState(() {
+      _isFullscreen = true;
+    });
+
+    final bool isLandscapeVideo = controller.value.aspectRatio >= 1.0;
+
+    try {
+      await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+      await SystemChrome.setPreferredOrientations(
+        isLandscapeVideo
+            ? const [
+          DeviceOrientation.landscapeLeft,
+          DeviceOrientation.landscapeRight,
+        ]
+            : const [
+          DeviceOrientation.portraitUp,
+        ],
+      );
+
+      if (!mounted) return;
+
+      await Navigator.of(context, rootNavigator: true).push<void>(
+        PageRouteBuilder<void>(
+          pageBuilder: (routeContext, animation, secondaryAnimation) {
+            return _FullscreenVideoPlayerPage(
+              controller: controller,
+              multimediaManager: _multimediaManager,
+              onTogglePlayPause: _togglePlayPause,
+            );
+          },
+          transitionDuration: const Duration(milliseconds: 200),
+          reverseTransitionDuration: const Duration(milliseconds: 200),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            return FadeTransition(
+              opacity: animation,
+              child: child,
+            );
+          },
+        ),
+      );
+    } finally {
+      await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+      await SystemChrome.setPreferredOrientations(const []);
+
+      if (mounted) {
+        setState(() {
+          _isFullscreen = false;
+        });
+        if (_controlsVisible && controller.value.isPlaying) {
+          _scheduleAutoHideControls();
+        }
+      }
+    }
+  }
+
+  // Manejo de pulsacion sobre la superficie del video para reproducir o alternar controles
   Future<void> _handleVideoSurfaceTap() async {
     if (!widget.isActive) return;
 
@@ -272,7 +369,7 @@ class _PromoVideoPlayerState extends State<PromoVideoPlayer>
       return;
     }
 
-    if (!controller.value.isPlaying) {
+    if (!controller.value.isPlaying && !_controlsVisible) {
       _hideControlsTimer?.cancel();
 
       if (controller.value.duration > Duration.zero &&
@@ -297,7 +394,7 @@ class _PromoVideoPlayerState extends State<PromoVideoPlayer>
       _controlsVisible = !_controlsVisible;
     });
 
-    if (_controlsVisible) {
+    if (_controlsVisible && controller.value.isPlaying) {
       _scheduleAutoHideControls();
     } else {
       _hideControlsTimer?.cancel();
@@ -308,12 +405,321 @@ class _PromoVideoPlayerState extends State<PromoVideoPlayer>
   void _scheduleAutoHideControls() {
     _hideControlsTimer?.cancel();
     _hideControlsTimer = Timer(const Duration(seconds: 4), () {
-      if (mounted && _controlsVisible && !_isDraggingProgress) {
+      final controller = _controller;
+      if (mounted &&
+          _controlsVisible &&
+          !_isDraggingProgress &&
+          (controller?.value.isPlaying ?? false)) {
         setState(() {
           _controlsVisible = false;
         });
       }
     });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = _controller;
+
+    return GestureDetector(
+      onTap: _handleVideoSurfaceTap,
+      child: Container(
+        width: double.infinity,
+        height: 195,
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(
+          color: Colors.black,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(
+            color: const Color(0xFFE1E5EB),
+          ),
+        ),
+        child: !_isInitialized || controller == null
+            ? const Center(
+          child: CircularProgressIndicator(
+            color: Color(0xFF5548F5),
+          ),
+        )
+            : _isFullscreen
+            ? const ColoredBox(color: Colors.black)
+            : Stack(
+          fit: StackFit.expand,
+          children: [
+            FittedBox(
+              fit: BoxFit.cover,
+              child: SizedBox(
+                width: controller.value.size.width > 0
+                    ? controller.value.size.width
+                    : 16,
+                height: controller.value.size.height > 0
+                    ? controller.value.size.height
+                    : 9,
+                child: VideoPlayer(controller),
+              ),
+            ),
+            _VideoControlsOverlay(
+              controller: controller,
+              multimediaManager: _multimediaManager,
+              controlsVisible: _controlsVisible,
+              isDraggingProgress: _isDraggingProgress,
+              dragProgressValue: _dragProgressValue,
+              isFullscreen: false,
+              onTogglePlayPause: _togglePlayPause,
+              onToggleFullscreen: _enterFullscreen,
+              onUserInteraction: _scheduleAutoHideControls,
+              onProgressDragStart: (val) {
+                _hideControlsTimer?.cancel();
+                setState(() {
+                  _isDraggingProgress = true;
+                  _dragProgressValue = val;
+                });
+              },
+              onProgressDragUpdate: (val) {
+                setState(() {
+                  _dragProgressValue = val;
+                });
+              },
+              onProgressDragEnd: (val) async {
+                final totalMs =
+                    controller.value.duration.inMilliseconds;
+                final targetMs = (totalMs * val).round();
+
+                await controller.seekTo(
+                  Duration(milliseconds: targetMs),
+                );
+
+                if (mounted) {
+                  setState(() {
+                    _isDraggingProgress = false;
+                  });
+                  if (controller.value.isPlaying) {
+                    _scheduleAutoHideControls();
+                  }
+                }
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// Vista dedicada de pantalla completa sincronizada con el reproductor activo
+class _FullscreenVideoPlayerPage extends StatefulWidget {
+  final VideoPlayerController controller;
+  final MultimediaManager multimediaManager;
+  final Future<void> Function() onTogglePlayPause;
+
+  const _FullscreenVideoPlayerPage({
+    required this.controller,
+    required this.multimediaManager,
+    required this.onTogglePlayPause,
+  });
+
+  @override
+  State<_FullscreenVideoPlayerPage> createState() =>
+      _FullscreenVideoPlayerPageState();
+}
+
+class _FullscreenVideoPlayerPageState
+    extends State<_FullscreenVideoPlayerPage> {
+  bool _controlsVisible = true;
+  bool _isDraggingProgress = false;
+  double _dragProgressValue = 0.0;
+  Timer? _hideControlsTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.controller.addListener(_onPlayerStateChanged);
+    widget.multimediaManager.volumeNotifier.addListener(_onPlayerStateChanged);
+    widget.multimediaManager.isMutedNotifier.addListener(_onPlayerStateChanged);
+
+    if (widget.controller.value.isPlaying) {
+      _scheduleAutoHideControls();
+    }
+  }
+
+  @override
+  void dispose() {
+    _hideControlsTimer?.cancel();
+    widget.controller.removeListener(_onPlayerStateChanged);
+    widget.multimediaManager.volumeNotifier
+        .removeListener(_onPlayerStateChanged);
+    widget.multimediaManager.isMutedNotifier
+        .removeListener(_onPlayerStateChanged);
+    super.dispose();
+  }
+
+  // Sincronizacion visual ante cambios de reproduccion o volumen
+  void _onPlayerStateChanged() {
+    if (!mounted) return;
+    setState(() {});
+  }
+
+  // Programacion del ocultamiento automatico de controles en pantalla completa
+  void _scheduleAutoHideControls() {
+    _hideControlsTimer?.cancel();
+    _hideControlsTimer = Timer(const Duration(seconds: 4), () {
+      if (mounted &&
+          _controlsVisible &&
+          !_isDraggingProgress &&
+          widget.controller.value.isPlaying) {
+        setState(() {
+          _controlsVisible = false;
+        });
+      }
+    });
+  }
+
+  // Alternancia de visibilidad de controles al tocar la pantalla completa
+  void _handleFullscreenSurfaceTap() {
+    setState(() {
+      _controlsVisible = !_controlsVisible;
+    });
+
+    if (_controlsVisible && widget.controller.value.isPlaying) {
+      _scheduleAutoHideControls();
+    } else {
+      _hideControlsTimer?.cancel();
+    }
+  }
+
+  // Cierre controlado del modo de pantalla completa
+  void _exitFullscreen() {
+    if (Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final double aspectRatio = widget.controller.value.aspectRatio > 0
+        ? widget.controller.value.aspectRatio
+        : 16 / 9;
+
+    return PopScope(
+      canPop: true,
+      child: Scaffold(
+        backgroundColor: Colors.black,
+        body: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: _handleFullscreenSurfaceTap,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              Center(
+                child: AspectRatio(
+                  aspectRatio: aspectRatio,
+                  child: VideoPlayer(widget.controller),
+                ),
+              ),
+              SafeArea(
+                child: _VideoControlsOverlay(
+                  controller: widget.controller,
+                  multimediaManager: widget.multimediaManager,
+                  controlsVisible: _controlsVisible,
+                  isDraggingProgress: _isDraggingProgress,
+                  dragProgressValue: _dragProgressValue,
+                  isFullscreen: true,
+                  onTogglePlayPause: () async {
+                    await widget.onTogglePlayPause();
+                    if (mounted) {
+                      setState(() {
+                        _controlsVisible = true;
+                      });
+                      if (widget.controller.value.isPlaying) {
+                        _scheduleAutoHideControls();
+                      } else {
+                        _hideControlsTimer?.cancel();
+                      }
+                    }
+                  },
+                  onToggleFullscreen: _exitFullscreen,
+                  onUserInteraction: _scheduleAutoHideControls,
+                  onProgressDragStart: (val) {
+                    _hideControlsTimer?.cancel();
+                    setState(() {
+                      _isDraggingProgress = true;
+                      _dragProgressValue = val;
+                    });
+                  },
+                  onProgressDragUpdate: (val) {
+                    setState(() {
+                      _dragProgressValue = val;
+                    });
+                  },
+                  onProgressDragEnd: (val) async {
+                    final totalMs =
+                        widget.controller.value.duration.inMilliseconds;
+                    final targetMs = (totalMs * val).round();
+
+                    await widget.controller.seekTo(
+                      Duration(milliseconds: targetMs),
+                    );
+
+                    if (mounted) {
+                      setState(() {
+                        _isDraggingProgress = false;
+                      });
+                      if (widget.controller.value.isPlaying) {
+                        _scheduleAutoHideControls();
+                      }
+                    }
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// Superposicion reutilizable de controles interactivos del reproductor
+class _VideoControlsOverlay extends StatelessWidget {
+  final VideoPlayerController controller;
+  final MultimediaManager multimediaManager;
+  final bool controlsVisible;
+  final bool isDraggingProgress;
+  final double dragProgressValue;
+  final bool isFullscreen;
+  final VoidCallback onTogglePlayPause;
+  final VoidCallback onToggleFullscreen;
+  final VoidCallback onUserInteraction;
+  final ValueChanged<double> onProgressDragStart;
+  final ValueChanged<double> onProgressDragUpdate;
+  final Future<void> Function(double) onProgressDragEnd;
+
+  const _VideoControlsOverlay({
+    required this.controller,
+    required this.multimediaManager,
+    required this.controlsVisible,
+    required this.isDraggingProgress,
+    required this.dragProgressValue,
+    required this.isFullscreen,
+    required this.onTogglePlayPause,
+    required this.onToggleFullscreen,
+    required this.onUserInteraction,
+    required this.onProgressDragStart,
+    required this.onProgressDragUpdate,
+    required this.onProgressDragEnd,
+  });
+
+  // Seleccion dinamica del icono segun el nivel real de volumen
+  IconData _getVolumeIcon(double effectiveVolume) {
+    final int percentage = (effectiveVolume.clamp(0.0, 1.0) * 100).round();
+    if (percentage <= 0) {
+      return Icons.volume_off_rounded;
+    } else if (percentage < 34) {
+      return Icons.volume_mute_rounded;
+    } else if (percentage < 100) {
+      return Icons.volume_down_rounded;
+    } else {
+      return Icons.volume_up_rounded;
+    }
   }
 
   // Formateo de la duracion del video en formato minutos y segundos
@@ -324,28 +730,34 @@ class _PromoVideoPlayerState extends State<PromoVideoPlayer>
     return '$minutes:$seconds';
   }
 
-  // Superposicion de controles interactivos del reproductor
-  Widget _buildInteractiveControlsOverlay(
-      VideoPlayerController controller) {
+  @override
+  Widget build(BuildContext context) {
     final value = controller.value;
     final totalMs = value.duration.inMilliseconds;
     final currentMs = value.position.inMilliseconds;
 
     final double progressRatio = totalMs > 0
-        ? (_isDraggingProgress
-        ? _dragProgressValue
+        ? (isDraggingProgress
+        ? dragProgressValue
         : (currentMs / totalMs).clamp(0.0, 1.0))
         : 0.0;
 
-    final bool isMuted = _multimediaManager.effectiveVolume <= 0.0;
-    final double currentVolume = _multimediaManager.effectiveVolume;
+    final double effectiveVolume = multimediaManager.effectiveVolume;
+    final bool isMuted = effectiveVolume <= 0.0;
+    final IconData volumeIcon = _getVolumeIcon(effectiveVolume);
+    final bool isPlaying = value.isPlaying;
+    final IconData playPauseIcon =
+    isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded;
+    final IconData fullscreenIcon = isFullscreen
+        ? Icons.fullscreen_exit_rounded
+        : Icons.fullscreen_rounded;
 
     return Positioned.fill(
       child: AnimatedOpacity(
-        opacity: _controlsVisible ? 1.0 : 0.0,
+        opacity: controlsVisible ? 1.0 : 0.0,
         duration: const Duration(milliseconds: 200),
         child: IgnorePointer(
-          ignoring: !_controlsVisible,
+          ignoring: !controlsVisible,
           child: Container(
             decoration: BoxDecoration(
               gradient: LinearGradient(
@@ -358,33 +770,26 @@ class _PromoVideoPlayerState extends State<PromoVideoPlayer>
                 ],
               ),
             ),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            padding: EdgeInsets.symmetric(
+              horizontal: isFullscreen ? 20 : 14,
+              vertical: isFullscreen ? 14 : 10,
+            ),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                // Fila superior con controles de volumen y ajustes
+                // Fila superior con boton unificado de sonido, barra de volumen y pantalla completa
                 Row(
                   children: [
                     _ControlIconButton(
-                      icon: Icons.volume_off_rounded,
-                      tooltip: 'Silenciar',
-                      isActive: isMuted,
-                      onPressed: () {
-                        _multimediaManager.mute();
-                        _scheduleAutoHideControls();
-                      },
-                    ),
-                    const SizedBox(width: 6),
-                    _ControlIconButton(
-                      icon: Icons.volume_up_rounded,
-                      tooltip: 'Activar sonido',
+                      icon: volumeIcon,
+                      tooltip: isMuted ? 'Activar sonido' : 'Silenciar',
                       isActive: !isMuted,
                       onPressed: () {
-                        _multimediaManager.unmute();
-                        _scheduleAutoHideControls();
+                        multimediaManager.toggleMute();
+                        onUserInteraction();
                       },
                     ),
-                    const SizedBox(width: 6),
+                    const SizedBox(width: 8),
                     Expanded(
                       child: SliderTheme(
                         data: SliderTheme.of(context).copyWith(
@@ -400,38 +805,38 @@ class _PromoVideoPlayerState extends State<PromoVideoPlayer>
                           thumbColor: Colors.white,
                         ),
                         child: Slider(
-                          value: currentVolume,
+                          value: effectiveVolume,
                           min: 0.0,
                           max: 1.0,
                           onChanged: (newVal) {
-                            _multimediaManager.setVolume(newVal);
-                            _scheduleAutoHideControls();
+                            multimediaManager.setVolume(newVal);
+                            onUserInteraction();
                           },
                         ),
                       ),
                     ),
-                    const SizedBox(width: 6),
-                    Tooltip(
-                      message: 'Pantalla completa no disponible',
-                      child: Container(
-                        width: 34,
-                        height: 34,
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.35),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: IconButton(
-                          padding: EdgeInsets.zero,
-                          iconSize: 20,
-                          onPressed: null,
-                          icon: Icon(
-                            Icons.fullscreen_rounded,
-                            color: Colors.white.withValues(alpha: 0.38),
-                          ),
-                        ),
-                      ),
+                    const SizedBox(width: 8),
+                    _ControlIconButton(
+                      icon: fullscreenIcon,
+                      tooltip: isFullscreen
+                          ? 'Salir de pantalla completa'
+                          : 'Pantalla completa',
+                      isActive: isFullscreen,
+                      onPressed: onToggleFullscreen,
                     ),
                   ],
+                ),
+                // Boton central animado de reproduccion y pausa
+                Center(
+                  child: _ControlIconButton(
+                    icon: playPauseIcon,
+                    tooltip: isPlaying ? 'Pausar' : 'Reproducir',
+                    isActive: isPlaying,
+                    size: isFullscreen ? 50 : 42,
+                    iconSize: isFullscreen ? 28 : 24,
+                    borderRadius: 14,
+                    onPressed: onTogglePlayPause,
+                  ),
                 ),
                 // Fila inferior con barra de progreso y temporizador
                 Column(
@@ -454,32 +859,9 @@ class _PromoVideoPlayerState extends State<PromoVideoPlayer>
                         value: progressRatio,
                         min: 0.0,
                         max: 1.0,
-                        onChangeStart: (val) {
-                          _hideControlsTimer?.cancel();
-                          setState(() {
-                            _isDraggingProgress = true;
-                            _dragProgressValue = val;
-                          });
-                        },
-                        onChanged: (val) {
-                          setState(() {
-                            _dragProgressValue = val;
-                          });
-                        },
-                        onChangeEnd: (val) async {
-                          final targetMs = (totalMs * val).round();
-
-                          await controller.seekTo(
-                            Duration(milliseconds: targetMs),
-                          );
-
-                          if (mounted) {
-                            setState(() {
-                              _isDraggingProgress = false;
-                            });
-                            _scheduleAutoHideControls();
-                          }
-                        },
+                        onChangeStart: onProgressDragStart,
+                        onChanged: onProgressDragUpdate,
+                        onChangeEnd: onProgressDragEnd,
                       ),
                     ),
                     Padding(
@@ -489,11 +871,10 @@ class _PromoVideoPlayerState extends State<PromoVideoPlayer>
                         children: [
                           Text(
                             _formatDuration(
-                              _isDraggingProgress
+                              isDraggingProgress
                                   ? Duration(
                                 milliseconds:
-                                (totalMs * _dragProgressValue)
-                                    .round(),
+                                (totalMs * dragProgressValue).round(),
                               )
                                   : value.position,
                             ),
@@ -523,65 +904,26 @@ class _PromoVideoPlayerState extends State<PromoVideoPlayer>
       ),
     );
   }
-
-  @override
-  Widget build(BuildContext context) {
-    final controller = _controller;
-
-    return GestureDetector(
-      onTap: _handleVideoSurfaceTap,
-      child: Container(
-        width: double.infinity,
-        height: 195,
-        clipBehavior: Clip.antiAlias,
-        decoration: BoxDecoration(
-          color: Colors.black,
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(
-            color: const Color(0xFFE1E5EB),
-          ),
-        ),
-        child: !_isInitialized || controller == null
-            ? const Center(
-          child: CircularProgressIndicator(
-            color: Color(0xFF5548F5),
-          ),
-        )
-            : Stack(
-          fit: StackFit.expand,
-          children: [
-            FittedBox(
-              fit: BoxFit.cover,
-              child: SizedBox(
-                width: controller.value.size.width > 0
-                    ? controller.value.size.width
-                    : 16,
-                height: controller.value.size.height > 0
-                    ? controller.value.size.height
-                    : 9,
-                child: VideoPlayer(controller),
-              ),
-            ),
-            _buildInteractiveControlsOverlay(controller),
-          ],
-        ),
-      ),
-    );
-  }
 }
 
-// Boton modular auxiliar para los controles del reproductor
+// Boton modular auxiliar con animacion coherente para los controles del reproductor
 class _ControlIconButton extends StatelessWidget {
   final IconData icon;
   final String tooltip;
   final bool isActive;
   final VoidCallback onPressed;
+  final double size;
+  final double iconSize;
+  final double borderRadius;
 
   const _ControlIconButton({
     required this.icon,
     required this.tooltip,
     required this.isActive,
     required this.onPressed,
+    this.size = 34,
+    this.iconSize = 19,
+    this.borderRadius = 10,
   });
 
   @override
@@ -591,19 +933,35 @@ class _ControlIconButton extends StatelessWidget {
 
     return Tooltip(
       message: tooltip,
-      child: Container(
-        width: 34,
-        height: 34,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        width: size,
+        height: size,
         decoration: BoxDecoration(
           color: isActive ? activeColor : inactiveColor,
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(borderRadius),
         ),
         child: IconButton(
           padding: EdgeInsets.zero,
-          iconSize: 19,
+          iconSize: iconSize,
           color: Colors.white,
           onPressed: onPressed,
-          icon: Icon(icon),
+          icon: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 200),
+            transitionBuilder: (child, animation) {
+              return ScaleTransition(
+                scale: animation,
+                child: FadeTransition(
+                  opacity: animation,
+                  child: child,
+                ),
+              );
+            },
+            child: Icon(
+              icon,
+              key: ValueKey<IconData>(icon),
+            ),
+          ),
         ),
       ),
     );

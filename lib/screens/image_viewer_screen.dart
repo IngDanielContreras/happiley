@@ -51,8 +51,8 @@ class _ImageViewerScreenState extends State<ImageViewerScreen> {
     setState(() {
       _currentScale = clampedScale;
       _transformationController.value = Matrix4.identity()
-        ..translate(newTx, newTy)
-        ..scale(clampedScale, clampedScale, 1.0);
+        ..translateByDouble(newTx, newTy, 0.0, 1.0)
+        ..scaleByDouble(clampedScale, clampedScale, 1.0, 1.0);
     });
   }
 

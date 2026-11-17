@@ -2,15 +2,124 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../services/system_sound_manager.dart';
 
+// Controlador para actualizar el estado de carga a resultado dentro del mismo dialogo
+class LoadingDialogController {
+  Future<void> Function({
+  required String title,
+  required String subtitle,
+  required bool isSuccess,
+  Widget? customIcon,
+  SystemSoundType? customSoundType,
+  Duration duration,
+  bool autoDismiss,
+  })? _onShowResult;
+
+  _PendingDialogResult? _pendingResult;
+
+  void _attach(
+      Future<void> Function({
+      required String title,
+      required String subtitle,
+      required bool isSuccess,
+      Widget? customIcon,
+      SystemSoundType? customSoundType,
+      Duration duration,
+      bool autoDismiss,
+      }) callback,
+      ) {
+    _onShowResult = callback;
+    final _PendingDialogResult? pending = _pendingResult;
+    if (pending != null) {
+      _pendingResult = null;
+      callback(
+        title: pending.title,
+        subtitle: pending.subtitle,
+        isSuccess: pending.isSuccess,
+        customIcon: pending.customIcon,
+        customSoundType: pending.customSoundType,
+        duration: pending.duration,
+        autoDismiss: pending.autoDismiss,
+      ).then((_) {
+        if (!pending.completer.isCompleted) {
+          pending.completer.complete();
+        }
+      });
+    }
+  }
+
+  void _detach() {
+    _onShowResult = null;
+  }
+
+  // Transiciona el icono interior hacia el resultado animado de exito o error
+  Future<void> showResult({
+    required String title,
+    required String subtitle,
+    required bool isSuccess,
+    Widget? customIcon,
+    SystemSoundType? customSoundType,
+    Duration duration = const Duration(seconds: 4),
+    bool autoDismiss = true,
+  }) {
+    final callback = _onShowResult;
+    if (callback != null) {
+      return callback(
+        title: title,
+        subtitle: subtitle,
+        isSuccess: isSuccess,
+        customIcon: customIcon,
+        customSoundType: customSoundType,
+        duration: duration,
+        autoDismiss: autoDismiss,
+      );
+    }
+
+    final Completer<void> completer = Completer<void>();
+    _pendingResult = _PendingDialogResult(
+      title: title,
+      subtitle: subtitle,
+      isSuccess: isSuccess,
+      customIcon: customIcon,
+      customSoundType: customSoundType,
+      duration: duration,
+      autoDismiss: autoDismiss,
+      completer: completer,
+    );
+    return completer.future;
+  }
+}
+
+class _PendingDialogResult {
+  final String title;
+  final String subtitle;
+  final bool isSuccess;
+  final Widget? customIcon;
+  final SystemSoundType? customSoundType;
+  final Duration duration;
+  final bool autoDismiss;
+  final Completer<void> completer;
+
+  const _PendingDialogResult({
+    required this.title,
+    required this.subtitle,
+    required this.isSuccess,
+    required this.customIcon,
+    required this.customSoundType,
+    required this.duration,
+    required this.autoDismiss,
+    required this.completer,
+  });
+}
+
 class LoadingDialog extends StatefulWidget {
   final String title;
   final String subtitle;
   final Widget? customIcon;
   final Duration duration;
   final bool autoDismiss;
-  final bool isExitDialog;
   final bool playOpenSound;
   final SystemSoundType? customSoundType;
+  final LoadingDialogController? controller;
 
   const LoadingDialog({
     super.key,
@@ -19,9 +128,9 @@ class LoadingDialog extends StatefulWidget {
     this.customIcon,
     this.duration = const Duration(seconds: 5),
     this.autoDismiss = false,
-    this.isExitDialog = false,
     this.playOpenSound = true,
     this.customSoundType,
+    this.controller,
   });
 
   static Future<void> show(
@@ -31,9 +140,9 @@ class LoadingDialog extends StatefulWidget {
         Widget? customIcon,
         Duration duration = const Duration(seconds: 5),
         bool autoDismiss = false,
-        bool isExitDialog = false,
         bool playOpenSound = true,
         SystemSoundType? customSoundType,
+        LoadingDialogController? controller,
       }) {
     return showDialog<void>(
       context: context,
@@ -51,9 +160,9 @@ class LoadingDialog extends StatefulWidget {
             customIcon: customIcon,
             duration: duration,
             autoDismiss: autoDismiss,
-            isExitDialog: isExitDialog,
             playOpenSound: playOpenSound,
             customSoundType: customSoundType,
+            controller: controller,
           ),
         );
       },
@@ -66,64 +175,24 @@ class LoadingDialog extends StatefulWidget {
 
 class _LoadingDialogState extends State<LoadingDialog>
     with SingleTickerProviderStateMixin {
-
   late final AnimationController _controller;
-  late final Animation<double> _scaleAnimation;
+  late Animation<double> _scaleAnimation;
   Timer? _timer;
-  bool _hasTriggeredSounds = false;
+  Completer<void>? _resultCompleter;
 
-  // Ejecucion unica de sonidos sincronizados con el estado visual del dialogo
-  void _triggerDialogSounds() {
-    if (_hasTriggeredSounds) return;
-    _hasTriggeredSounds = true;
-
-    final soundManager = SystemSoundManager();
-
-    if (widget.customSoundType != null) {
-      soundManager.playSound(widget.customSoundType!);
-      return;
-    }
-
-    if (widget.isExitDialog) {
-      soundManager.playExit();
-      return;
-    }
-
-    final Widget? iconWidget = widget.customIcon;
-    if (iconWidget is Icon) {
-      final IconData? iconData = iconWidget.icon;
-      if (iconData == Icons.check_circle_rounded ||
-          iconData == Icons.check_circle ||
-          iconData == Icons.check) {
-        soundManager.playSuccess();
-        return;
-      } else if (iconData == Icons.cancel_rounded ||
-          iconData == Icons.cancel ||
-          iconData == Icons.error_rounded ||
-          iconData == Icons.error ||
-          iconData == Icons.close_rounded ||
-          iconData == Icons.block_rounded ||
-          iconData == Icons.remove_shopping_cart_rounded) {
-        soundManager.playError();
-        return;
-      } else if (iconData == Icons.warning_amber_rounded ||
-          iconData == Icons.warning_rounded ||
-          iconData == Icons.warning) {
-        soundManager.playAlert();
-        return;
-      }
-    }
-
-    if (widget.playOpenSound) {
-      soundManager.playDialogOpen();
-    }
-  }
+  late String _currentTitle;
+  late String _currentSubtitle;
+  Widget? _currentCustomIcon;
 
   @override
   void initState() {
     super.initState();
 
-    final bool isCustom = widget.customIcon != null;
+    _currentTitle = widget.title;
+    _currentSubtitle = widget.subtitle;
+    _currentCustomIcon = widget.customIcon;
+
+    final bool isCustom = _currentCustomIcon != null;
 
     if (isCustom) {
       _controller = AnimationController(
@@ -154,21 +223,125 @@ class _LoadingDialogState extends State<LoadingDialog>
       );
     }
 
-    _triggerDialogSounds();
+    _playInitialSound();
 
     if (widget.autoDismiss) {
-      _timer = Timer(widget.duration, () {
-        if (!mounted) return;
-        Navigator.of(context, rootNavigator: true).pop();
-      });
+      _scheduleAutoDismiss(widget.duration);
     }
+
+    widget.controller?._attach(_handleShowResult);
   }
 
   @override
   void dispose() {
+    widget.controller?._detach();
     _timer?.cancel();
+    if (_resultCompleter != null && !_resultCompleter!.isCompleted) {
+      _resultCompleter!.complete();
+    }
     _controller.dispose();
     super.dispose();
+  }
+
+  // Reproduccion sincronizada del sonido inicial segun el estado del dialogo
+  void _playInitialSound() {
+    final soundManager = SystemSoundManager();
+
+    if (widget.customSoundType != null) {
+      soundManager.playSound(widget.customSoundType!);
+      return;
+    }
+
+    final Widget? iconWidget = _currentCustomIcon;
+    if (iconWidget is Icon) {
+      final IconData? iconData = iconWidget.icon;
+      if (iconData == Icons.check_circle_rounded ||
+          iconData == Icons.check_circle ||
+          iconData == Icons.check) {
+        soundManager.playSuccess();
+        return;
+      } else if (iconData == Icons.cancel_rounded ||
+          iconData == Icons.cancel ||
+          iconData == Icons.error_rounded ||
+          iconData == Icons.error ||
+          iconData == Icons.close_rounded ||
+          iconData == Icons.block_rounded ||
+          iconData == Icons.remove_shopping_cart_rounded) {
+        soundManager.playError();
+        return;
+      } else if (iconData == Icons.warning_amber_rounded ||
+          iconData == Icons.warning_rounded ||
+          iconData == Icons.warning) {
+        soundManager.playAlert();
+        return;
+      }
+    }
+
+    if (widget.playOpenSound) {
+      soundManager.playDialogOpen();
+    }
+  }
+
+  // Programacion del cierre automatico tras cumplirse la duracion definida
+  void _scheduleAutoDismiss(Duration duration) {
+    _timer?.cancel();
+    _timer = Timer(duration, () {
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
+      if (_resultCompleter != null && !_resultCompleter!.isCompleted) {
+        _resultCompleter!.complete();
+      }
+    });
+  }
+
+  // Actualizacion exclusiva del icono interior hacia el estado de resultado
+  Future<void> _handleShowResult({
+    required String title,
+    required String subtitle,
+    required bool isSuccess,
+    Widget? customIcon,
+    SystemSoundType? customSoundType,
+    Duration duration = const Duration(seconds: 4),
+    bool autoDismiss = true,
+  }) {
+    if (!mounted) return Future<void>.value();
+
+    final Widget resolvedIcon = customIcon ??
+        Icon(
+          isSuccess ? Icons.check_circle_rounded : Icons.cancel_rounded,
+          color: isSuccess ? const Color(0xFF4CAF50) : const Color(0xFFE53935),
+          size: 56,
+        );
+
+    final SystemSoundType resolvedSound = customSoundType ??
+        (isSuccess ? SystemSoundType.success : SystemSoundType.error);
+
+    _controller.stop();
+    _controller.duration = const Duration(milliseconds: 600);
+    _scaleAnimation = Tween<double>(begin: 0.5, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: Curves.elasticOut,
+      ),
+    );
+
+    setState(() {
+      _currentTitle = title;
+      _currentSubtitle = subtitle;
+      _currentCustomIcon = resolvedIcon;
+    });
+
+    _controller.forward(from: 0.0);
+    SystemSoundManager().playSound(resolvedSound);
+
+    if (autoDismiss) {
+      final Completer<void> completer = Completer<void>();
+      _resultCompleter = completer;
+      _scheduleAutoDismiss(duration);
+      return completer.future;
+    }
+
+    return Future<void>.value();
   }
 
   Widget _buildAnimatedLogo() {
@@ -177,14 +350,16 @@ class _LoadingDialogState extends State<LoadingDialog>
       builder: (context, child) {
         final double progress = _controller.value;
         return Container(
-          // Tamaño original de 80x80 para el logo de Happiley
+          // Tamano original de 80x80 para el logo de Happiley
           width: 80,
           height: 80,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(22),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF5548F5).withValues(alpha: 0.1 + progress * 0.2),
+                color: const Color(0xFF5548F5).withValues(
+                  alpha: 0.1 + progress * 0.2,
+                ),
                 spreadRadius: 2 + progress * 4,
                 blurRadius: 8 + progress * 8,
               ),
@@ -218,23 +393,14 @@ class _LoadingDialogState extends State<LoadingDialog>
   @override
   Widget build(BuildContext context) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
-    final Color dialogBackground =
-    isDark ? const Color(0xFF252834) : const Color(0xFFE6E8EF);
-    final Color titleColor =
-    isDark ? const Color(0xFFF1F3F9) : const Color(0xFF181B24);
-    final Color subtitleColor =
-    isDark ? const Color(0xFFC7CDDC) : const Color(0xFF373D4D);
-
-    final Widget iconToDisplay = widget.customIcon != null
+    final Widget iconToDisplay = _currentCustomIcon != null
         ? ScaleTransition(
       scale: _scaleAnimation,
-      child: widget.customIcon,
+      child: _currentCustomIcon,
     )
         : _buildAnimatedLogo();
 
     return AlertDialog(
-      backgroundColor: dialogBackground,
-      surfaceTintColor: Colors.transparent,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
       ),
@@ -245,21 +411,21 @@ class _LoadingDialogState extends State<LoadingDialog>
           iconToDisplay,
           const SizedBox(height: 18),
           Text(
-            widget.title,
+            _currentTitle,
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 17,
               fontWeight: FontWeight.bold,
-              color: titleColor,
+              color: isDark ? Colors.white : const Color(0xFF20242B),
             ),
           ),
           const SizedBox(height: 8),
           Text(
-            widget.subtitle,
+            _currentSubtitle,
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 13,
-              color: subtitleColor,
+              color: isDark ? const Color(0xFFB3BACB) : const Color(0xFF718096),
             ),
           ),
         ],

@@ -117,6 +117,7 @@ class _CartScreenState extends State<CartScreen> {
         subtitle: 'Debes iniciar sesión para realizar una compra.',
         autoDismiss: true,
         duration: const Duration(seconds: 3),
+        playOpenSound: false,
         customSoundType: SystemSoundType.error,
         customIcon: const Icon(
           Icons.lock_outline_rounded,
@@ -195,6 +196,7 @@ class _CartScreenState extends State<CartScreen> {
         subtitle: 'Tu pedido ha sido procesado correctamente.',
         autoDismiss: true,
         duration: const Duration(seconds: 3),
+        playOpenSound: false,
         customSoundType: SystemSoundType.success,
         customIcon: const Icon(
           Icons.check_circle_rounded,
@@ -222,6 +224,7 @@ class _CartScreenState extends State<CartScreen> {
         subtitle: errorReason,
         autoDismiss: true,
         duration: const Duration(seconds: 4),
+        playOpenSound: false,
         customSoundType: SystemSoundType.error,
         customIcon: const Icon(
           Icons.cancel_rounded,

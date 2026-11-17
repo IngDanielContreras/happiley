@@ -86,8 +86,7 @@ class _RichTextToolbarState extends State<RichTextToolbar> {
     });
 
     widget.controller.formatSelection(
-      Attribute.fromKeyValue('size', clamped.toString())
-      as Attribute<dynamic>,
+      Attribute.fromKeyValue('size', clamped.toString()),
     );
   }
 
@@ -121,7 +120,7 @@ class _RichTextToolbarState extends State<RichTextToolbar> {
 
     if (isActive) {
       widget.controller.formatSelection(
-        Attribute.clone(attribute, null) as Attribute<dynamic>,
+        Attribute.clone(attribute, null),
       );
     } else {
       widget.controller.formatSelection(attribute);
@@ -140,12 +139,12 @@ class _RichTextToolbarState extends State<RichTextToolbar> {
 
     if (isActive) {
       widget.controller.formatSelection(
-        Attribute.clone(attribute, null) as Attribute<dynamic>,
+        Attribute.clone(attribute, null),
       );
     } else {
       if (currentList != null) {
         widget.controller.formatSelection(
-          Attribute.clone(currentList, null) as Attribute<dynamic>,
+          Attribute.clone(currentList, null),
         );
       }
 
@@ -175,7 +174,7 @@ class _RichTextToolbarState extends State<RichTextToolbar> {
 
     for (final Attribute<dynamic> attr in attrsToRemove) {
       widget.controller.formatSelection(
-        Attribute.clone(attr, null) as Attribute<dynamic>,
+        Attribute.clone(attr, null),
       );
     }
 
@@ -240,23 +239,21 @@ class _RichTextToolbarState extends State<RichTextToolbar> {
       initialColor: initialColor,
       onColorSelected: (selectedColor) {
         final String hexString =
-            '#${selectedColor.value.toRadixString(16).substring(2).toUpperCase()}';
+            '#${selectedColor.toARGB32().toRadixString(16).substring(2).toUpperCase()}';
 
-        final Attribute<dynamic> attribute = isBackground
+        final Attribute<dynamic>? attribute = isBackground
             ? Attribute.fromKeyValue('background', hexString)
-        as Attribute<dynamic>
-            : Attribute.fromKeyValue('color', hexString)
-        as Attribute<dynamic>;
+            : Attribute.fromKeyValue('color', hexString);
 
-        widget.controller.formatSelection(attribute);
-        _onControllerSelectionChanged();
+        if (attribute != null) {
+          widget.controller.formatSelection(attribute);
+          _onControllerSelectionChanged();
+        }
       },
       onColorCleared: () {
         final Attribute<dynamic> attribute = isBackground
             ? Attribute.clone(Attribute.background, null)
-        as Attribute<dynamic>
-            : Attribute.clone(Attribute.color, null)
-        as Attribute<dynamic>;
+            : Attribute.clone(Attribute.color, null);
 
         widget.controller.formatSelection(attribute);
         _onControllerSelectionChanged();

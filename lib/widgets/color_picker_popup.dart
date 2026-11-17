@@ -95,7 +95,7 @@ class _ColorPickerPopupState extends State<ColorPickerPopup> {
     final prefs = await SharedPreferences.getInstance();
 
     final List<String> colorStrings = _customColors.map((color) {
-      return '#${color.value.toRadixString(16).substring(2).toUpperCase()}';
+      return '#${color.toARGB32().toRadixString(16).substring(2).toUpperCase()}';
     }).toList();
 
     await prefs.setStringList(_keySavedColors, colorStrings);
@@ -104,7 +104,7 @@ class _ColorPickerPopupState extends State<ColorPickerPopup> {
   // Actualizacion del valor hexadecimal en el campo editable
   void _updateHexText(Color color) {
     final String hex =
-    color.value.toRadixString(16).substring(2).toUpperCase();
+    color.toARGB32().toRadixString(16).substring(2).toUpperCase();
 
     _hexController.text = '#$hex';
   }
@@ -205,7 +205,7 @@ class _ColorPickerPopupState extends State<ColorPickerPopup> {
                 ...allColors.map((color) {
                   final bool isSelected =
                       !_clearColor &&
-                          _selectedColor.value == color.value;
+                          _selectedColor.toARGB32() == color.toARGB32();
 
                   return GestureDetector(
                     onTap: () {

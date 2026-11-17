@@ -1,18 +1,17 @@
 import 'dart:convert';
 import 'dart:io';
-
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:flutter/services.dart' hide SystemSoundType;
 import 'package:flutter_quill/flutter_quill.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart' as p;
-
 import 'image_viewer_screen.dart';
 import '../services/app_utils.dart';
 import '../services/session_manager.dart';
 import '../services/notification_service.dart';
+import '../services/system_sound_manager.dart';
 import '../widgets/loading_dialog.dart';
 import '../widgets/rich_text_toolbar.dart';
 import '../widgets/alert_message.dart';
@@ -268,6 +267,9 @@ class _PublishArticleScreenState extends State<PublishArticleScreen> {
 
   // Confirmacion antes de limpiar los campos del formulario
   Future<void> _confirmClearForm() async {
+    bool actionSoundPlayed = false;
+    SystemSoundManager().playDialogOpen();
+
     final bool? confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) {
@@ -280,6 +282,8 @@ class _PublishArticleScreenState extends State<PublishArticleScreen> {
           actions: [
             ElevatedButton(
               onPressed: () {
+                actionSoundPlayed = true;
+                SystemSoundManager().playAcceptYes();
                 Navigator.of(dialogContext).pop(true);
               },
               style: ElevatedButton.styleFrom(
@@ -291,6 +295,8 @@ class _PublishArticleScreenState extends State<PublishArticleScreen> {
             ElevatedButton(
               autofocus: true,
               onPressed: () {
+                actionSoundPlayed = true;
+                SystemSoundManager().playDeniedNo();
                 Navigator.of(dialogContext).pop(false);
               },
               style: ElevatedButton.styleFrom(
@@ -303,6 +309,10 @@ class _PublishArticleScreenState extends State<PublishArticleScreen> {
         );
       },
     );
+
+    if (!actionSoundPlayed && confirmed != true) {
+      SystemSoundManager().playDeniedNo();
+    }
 
     if (!mounted || confirmed != true) return;
 

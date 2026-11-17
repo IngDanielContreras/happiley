@@ -370,7 +370,7 @@ class _NotificationsOverlayWrapperState
                                   ),
                                   shrinkWrap: true,
                                   itemCount: items.length,
-                                  separatorBuilder: (_, __) =>
+                                  separatorBuilder: (_, _) =>
                                   const SizedBox(height: 6),
                                   itemBuilder: (context, index) {
                                     final item = items[index];
